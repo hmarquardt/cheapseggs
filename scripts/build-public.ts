@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { PUBLIC_PATHS, SITE_JSON_LD, SITE_JSON_LD_HASH, SITE_ORIGIN } from "../src/config/site.ts";
+import { DISCOVERY_ENTRIES } from "../src/content/discovery/catalog.ts";
 import { PUBLIC_PAGES } from "../src/content/public-pages.ts";
 
 export function escapeHtml(value: string): string {
@@ -12,6 +14,24 @@ export function escapeHtml(value: string): string {
 }
 
 const root = "dist/client";
+
+/** Build-only gate; the editorial source is never imported by a client entry. */
+function checkRestrictedAssets(directory: string): void {
+  const drafts = DISCOVERY_ENTRIES.filter((entry) => entry.status === "draft");
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) checkRestrictedAssets(path);
+    else if (entry.isFile()) {
+      const text = readFileSync(path).toString("utf8");
+      if (
+        drafts.some((draft) =>
+          [draft.id, draft.title, draft.description].some((value) => text.includes(value)),
+        )
+      )
+        throw new Error("Restricted editorial content found in public assets");
+    }
+  }
+}
 
 /**
  * Each entry's own built HTML supplies the hashed stylesheet and module script tags.
@@ -112,6 +132,7 @@ writeFileSync(
   `${root}/404.html`,
   `<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="robots" content="noindex, nofollow"/><title>Not found — CheapSeggs</title>${homeAssets.styles}</head><body><main class="wrap prose"><p class="eyebrow">404</p><h1>Nothing on this table.</h1><p>That page does not exist. The <a href="/play/">wheels</a>, the <a href="/date-night/">Date Night Machine</a> and the <a href="/recipes/">cookbook</a> all still work.</p><p><a class="button button-outline" href="/">Back to CheapSeggs</a></p></main></body></html>`,
 );
+checkRestrictedAssets(root);
 console.log(
   `Built ${PUBLIC_PAGES.length} public pages, ${Object.keys(APP_PAGES).length} applications, sitemap and 404.`,
 );

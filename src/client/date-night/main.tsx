@@ -280,7 +280,11 @@ function DateNight() {
           })),
           targetPosition: position,
           ...(chosenActivityId ? { chosenActivityId } : {}),
-          avoid: settings.excludedActivities,
+          // Current exclusions are already in config. Avoid this answer immediately,
+          // including when "Not tonight" has just queued its settings update.
+          avoid: plan.steps
+            .filter((step) => step.position === position)
+            .map((step) => step.activity.id),
         });
         setPlan((current) => {
           if (!current) return current;

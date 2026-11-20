@@ -186,6 +186,7 @@ export function recipeFits(
   recipe: RecipeDefinition,
   config: EveningConfig,
   pool: readonly Activity[],
+  retiming = false,
 ): RecipeFit {
   const budget = durationMinutes(config.duration);
   if (recipe.mood !== config.mood) return { ok: false, reason: "mood" };
@@ -197,7 +198,7 @@ export function recipeFits(
     experimentation > recipe.experimentationBand[1]
   )
     return { ok: false, reason: "experimentation" };
-  if (budget < recipe.minimumMinutes || budget > recipe.maximumMinutes)
+  if (!retiming && (budget < recipe.minimumMinutes || budget > recipe.maximumMinutes))
     return { ok: false, reason: "time" };
   if (
     !recipe.environments.includes(
@@ -206,7 +207,11 @@ export function recipeFits(
   )
     return { ok: false, reason: "environment" };
   const optIns = new Set(config.optIns);
-  if (!recipe.requiredOptIns.every((optIn) => optIns.has(optIn)))
+  if (
+    !recipe.requiredOptIns.every(
+      (optIn) => optIns.has(optIn) && !config.excludedCategories.includes(optIn),
+    )
+  )
     return { ok: false, reason: "opt-in" };
   if (pool.length === 0) return { ok: false, reason: "empty-pool" };
   return { ok: true };
@@ -333,6 +338,11 @@ export function composePlan(options: ComposeOptions): ComposeResult {
   const { recipe, pool, config, source } = options;
   const budget = durationMinutes(config.duration);
   const keep = new Map((options.keep ?? []).map((entry) => [entry.position, entry] as const));
+  if (
+    keep.size !== (options.keep ?? []).length ||
+    [...keep.keys()].some((position) => !recipe.steps.some((step) => step.position === position))
+  )
+    return { ok: false, reason: "keep-ineligible", position: -1 };
   const avoid = options.avoid ?? new Set<string>();
   const used = new Set<string>();
   const steps: ComposedStep[] = [];
@@ -369,6 +379,7 @@ export function composePlan(options: ComposeOptions): ComposeResult {
         !activity ||
         used.has(activity.id) ||
         !phaseCompatible(activity, definition.slot) ||
+        activity.durationMinutes > definition.maxMinutes ||
         activity.durationMinutes > available
       )
         return { ok: false, reason: "keep-ineligible", position: definition.position };
@@ -677,25 +688,33 @@ export function rerollStep(options: {
   if (!target) return { ok: false, reason: "invalid-plan" };
 
   const used = new Set<string>();
+  const positions = new Set<number>();
   let planned = recipe.preparationMinutes;
   let targetDuration = 0;
   let sawTarget = false;
   for (const ref of options.steps) {
     const definition = definitions.get(ref.position);
-    if (!definition) return { ok: false, reason: "invalid-plan" };
+    if (!definition || positions.has(ref.position)) return { ok: false, reason: "invalid-plan" };
+    positions.add(ref.position);
     const activity = pool.find(
       (entry) => entry.id === ref.activityId && entry.version === ref.version,
     );
-    if (!activity || !phaseCompatible(activity, definition.slot) || used.has(activity.id))
+    if (
+      !activity ||
+      !phaseCompatible(activity, definition.slot) ||
+      used.has(activity.id) ||
+      activity.durationMinutes > definition.maxMinutes
+    )
       return { ok: false, reason: "invalid-plan" };
     used.add(activity.id);
     planned += activity.durationMinutes;
     if (ref.position === options.targetPosition) {
       sawTarget = true;
       targetDuration = activity.durationMinutes;
-      used.delete(activity.id);
     }
   }
+  const currentTarget = options.steps.find((ref) => ref.position === options.targetPosition);
+  if (currentTarget) used.delete(currentTarget.activityId);
   if (!sawTarget && !target.optional && !options.chosenActivityId) {
     // Filling a required slot that a caller left out is valid only when the caller is
     // rebuilding; the server treats a missing required step as an incomplete plan.

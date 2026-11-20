@@ -110,7 +110,8 @@ function buildRecipe(
   if (
     row.status !== "published" ||
     row.access_tier !== "public_preview" ||
-    row.public_preview !== 1
+    row.public_preview !== 1 ||
+    row.pack_id !== null
   )
     return null;
   const metadata = parseMetadata(row.metadata_json);
@@ -182,7 +183,7 @@ export async function loadRecipes(db: D1Database): Promise<RecipeCatalog> {
     db
       .prepare(
         `SELECT * FROM recipe_templates
-         WHERE status = 'published' AND access_tier = 'public_preview' AND public_preview = 1
+         WHERE status = 'published' AND access_tier = 'public_preview' AND public_preview = 1 AND pack_id IS NULL
          ORDER BY id`,
       )
       .all<RecipeRow>(),

@@ -47,6 +47,7 @@ import {
   type SpinRecord,
 } from "../services/wheel";
 import type { Bindings } from "./bindings";
+import { boundedText } from "./body";
 
 export const WHEEL_ID = "misfortune";
 const MAX_BODY_BYTES = 4096;
@@ -187,6 +188,11 @@ function replayResponse(
   spin: SpinRecord,
   eligibleCount: number,
 ): SpinResponse | null {
+  // Publication and eligibility may have changed since the original draw.
+  catalog = {
+    ...catalog,
+    activities: eligibleActivities(catalog.activities, toEligibilityContext(request)),
+  };
   const winner = winnerFrom(catalog, spin);
   if (!winner) return null;
   const partner = spin.companionActivityId
@@ -195,7 +201,15 @@ function replayResponse(
           entry.id === spin.companionActivityId && entry.version === spin.companionActivityVersion,
       ) ?? null)
     : null;
-  if (catalog.wheel.drawMode === "pair" && !partner) return null;
+  if (
+    catalog.wheel.drawMode === "pair" &&
+    (!partner ||
+      winner.id === partner.id ||
+      winner.incompatibleWith.includes(partner.id) ||
+      partner.incompatibleWith.includes(winner.id) ||
+      winner.durationMinutes + partner.durationMinutes > minutesOf(request.duration))
+  )
+    return null;
   return resultResponse(
     request,
     catalog,
@@ -321,10 +335,10 @@ wheelRoutes.post("/spins", async (c) => {
   if (!contentType.startsWith("application/json")) {
     return c.json({ error: "unsupported_media_type" }, 415);
   }
-  const raw = await c.req.text();
-  if (raw.length > MAX_BODY_BYTES) return c.json({ error: "payload_too_large" }, 413);
   let body: unknown;
   try {
+    const raw = await boundedText(c.req.raw, MAX_BODY_BYTES);
+    if (raw === null) return c.json({ error: "payload_too_large" }, 413);
     body = JSON.parse(raw);
   } catch {
     return c.json({ error: "invalid_request" }, 422);

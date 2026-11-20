@@ -79,6 +79,27 @@ test("rules and plans stay on the device, with no cookies or storage", async ({ 
   await expect(page.getByRole("heading", { name: "Set the rules" })).toBeVisible();
 });
 
+test("not tonight immediately avoids the dismissed idea without analytics", async ({ page }) => {
+  const analytics: string[] = [];
+  page.on("request", (request) => {
+    if (/analytics\.aismallbizguru\.com|cloudflareinsights\.com/.test(request.url()))
+      analytics.push(request.url());
+  });
+  await enterKitchen(page);
+  const composed = page.waitForResponse((response) => response.url().endsWith("/date-night/plans"));
+  await page.getByRole("button", { name: "Compose my evening" }).click();
+  const plan = await (await composed).json();
+  const first = plan.steps[0];
+  const replaced = page.waitForResponse((response) => response.url().endsWith("/date-night/steps"));
+  await page.locator(".plan-step").first().getByRole("button", { name: "Not tonight" }).click();
+  const response = await replaced;
+  expect(response.status()).toBe(200);
+  expect(response.request().postDataJSON().avoid).toContain(first.activity.id);
+  expect((await response.json()).step.activity.id).not.toBe(first.activity.id);
+  expect(analytics).toEqual([]);
+  expect(await page.evaluate(() => localStorage.length + sessionStorage.length)).toBe(0);
+});
+
 test("the cookbook opens recipes and hands them to the machine", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const errors: string[] = [];

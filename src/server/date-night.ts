@@ -9,6 +9,7 @@ import {
   planHints,
   planId,
   planRequestSchema,
+  recipeFits,
   rerollStep,
   SLOT_LABEL,
   stepRequestSchema,
@@ -25,8 +26,14 @@ import {
 } from "../domain/wheel";
 import { toRecipeSummary } from "../services/recipe-dto";
 import { loadRecipes } from "../services/recipes";
-import { ensureGuestSession, type GuestSession, suppliesFor } from "../services/wheel";
+import {
+  ensureGuestSession,
+  type GuestSession,
+  purgeExpired,
+  suppliesFor,
+} from "../services/wheel";
 import type { Bindings } from "./bindings";
+import { boundedText } from "./body";
 import { recipeRevision } from "./recipes";
 import { originAllowed, rateLimited, tooMany } from "./wheel";
 
@@ -54,6 +61,11 @@ async function guestSession(c: Context<Env>): Promise<GuestSession | Response> {
   const now = Math.floor(Date.now() / 1000);
   const session = await ensureGuestSession(c.env.DB, presented, now);
   if (!session) return c.json({ error: "guest_session_required" }, 400);
+  try {
+    await purgeExpired(c.env.DB, now);
+  } catch {
+    // Bounded, best-effort cleanup, as on the wheel path.
+  }
   return session;
 }
 
@@ -65,9 +77,9 @@ async function readJson(c: Context<Env>): Promise<unknown | Response> {
   const contentType = (c.req.header("content-type") ?? "").toLowerCase();
   if (!contentType.startsWith("application/json"))
     return c.json({ error: "unsupported_media_type" }, 415);
-  const raw = await c.req.text();
-  if (raw.length > MAX_BODY_BYTES) return c.json({ error: "payload_too_large" }, 413);
   try {
+    const raw = await boundedText(c.req.raw, MAX_BODY_BYTES);
+    if (raw === null) return c.json({ error: "payload_too_large" }, 413);
     return JSON.parse(raw) as unknown;
   } catch {
     return c.json({ error: "invalid_request" }, 422);
@@ -150,9 +162,9 @@ dateNightRoutes.post("/date-night/plans", async (c) => {
   if (isResponse(body)) return body;
   const parsed = planRequestSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: "invalid_request" }, 422);
-  const session = await guestSession(c);
-  if (isResponse(session)) return session;
   try {
+    const session = await guestSession(c);
+    if (isResponse(session)) return session;
     const catalog = await loadCatalog(env);
     const activities = [...catalog.recipes.activities.values()];
     const supplies = suppliesFor(activities);
@@ -170,6 +182,8 @@ dateNightRoutes.post("/date-night/plans", async (c) => {
     const recipe =
       forced ??
       chooseRecipe(catalog.recipes.recipes, parsed.data.config, pool, parsed.data.recipeId);
+    if (forced && !recipeFits(forced, parsed.data.config, pool, true).ok)
+      return c.json(planFailure("keep-ineligible", null, catalog.revision), 200);
     if (!recipe) {
       const failure = planFailure("no-recipe", null, catalog.revision);
       return c.json(
@@ -210,9 +224,9 @@ dateNightRoutes.post("/date-night/steps", async (c) => {
   if (isResponse(body)) return body;
   const parsed = stepRequestSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: "invalid_request" }, 422);
-  const session = await guestSession(c);
-  if (isResponse(session)) return session;
   try {
+    const session = await guestSession(c);
+    if (isResponse(session)) return session;
     const catalog = await loadCatalog(env);
     const activities = [...catalog.recipes.activities.values()];
     const supplies = suppliesFor(activities);
@@ -223,6 +237,8 @@ dateNightRoutes.post("/date-night/steps", async (c) => {
     );
     if (!recipe) return c.json({ error: "recipe_not_found" }, 404);
     const pool = eligibleActivities(activities, eveningEligibility(parsed.data.config));
+    if (!recipeFits(recipe, parsed.data.config, pool, true).ok)
+      return c.json({ error: "invalid_plan" }, 422);
     const result = rerollStep({
       recipe,
       pool,

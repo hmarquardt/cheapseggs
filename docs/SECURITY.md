@@ -1,5 +1,7 @@
 # Security, abuse and compliance review
 
+M3B follow-up: [independent security and integration review](M3B_SECURITY_REVIEW.md) records verified findings, corrections, validation and residual limits.
+
 ## M3A status (supersedes historical disabled-identity statements above)
 
 Better Auth 1.7.27 email OTP, native D1 sessions and Cloudflare account email are implemented. Current threats/controls, exact lifetimes, advisory review, CSRF policy, abuse budgets and deletion/restore restrictions are in [AUTH.md](AUTH.md). New catalog versions default to restricted and are excluded from every guest read; only the frozen reviewed M2 manifest is public. No age provider or restricted-content market is enabled; see [AGE_ASSURANCE.md](AGE_ASSURANCE.md). No document, intimate response, private activity approval/history, couple sharing or billing data is collected by M3A. No E2EE claim.

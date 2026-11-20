@@ -252,6 +252,7 @@ export async function loadPublicActivities(
              ON av.activity_id = ws.activity_id AND av.version = ws.activity_version
            JOIN categories c ON c.id = av.category_id
            WHERE ws.wheel_id = ? AND ws.wheel_version = ? AND av.access_tier = 'public_preview'
+             AND av.pack_id IS NULL
            ORDER BY ws.activity_id`,
         )
         .bind(wheel.id, wheel.version)
@@ -263,7 +264,7 @@ export async function loadPublicActivities(
                   av.duration_minutes, av.metadata_json, av.status, av.pack_id, c.required_opt_in
            FROM activity_versions av
            JOIN categories c ON c.id = av.category_id
-           WHERE av.access_tier = 'public_preview' AND av.status = 'published'
+           WHERE av.access_tier = 'public_preview' AND av.status = 'published' AND av.pack_id IS NULL
            ORDER BY av.activity_id`,
         )
         .all<SegmentRow>();

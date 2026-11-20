@@ -79,6 +79,8 @@ the server re-validates every one against the current catalog and submitted rule
   impossible keeps return `keep-ineligible` instead of dropping a step silently.
 - `avoid[]` → "restart with fresh ideas" without forgetting the evening's exclusions.
 
+Recipe requirements are checked again on every mutation; re-timing may bypass only the recommended time band. Free reads also exclude commercially gated recipes and activity references.
+
 A tampered step (an id that is not in the eligible pool, or the wrong phase for its slot) is rejected
 as `invalid_plan`. The client cannot widen heat, add a category or bypass an exclusion.
 
@@ -141,3 +143,5 @@ and the plan itself is never persisted.
 - The restricted adult drafts are scaffolds for review, not approved content.
 - No partner approval, matching or entitlement check is involved, because those features are not live.
 - "Dealer's Choice" is a category-first draw, not a hand of cards with a stored hand.
+
+The bounded independent review and corrections are recorded in [M3B Security Review](M3B_SECURITY_REVIEW.md), including migration `0006`, replay policy, resource limits and residual risks.
