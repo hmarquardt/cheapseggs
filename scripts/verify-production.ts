@@ -1,43 +1,25 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { PUBLIC_PATHS, SITE_ORIGIN } from "../src/config/site.ts";
+import { releaseResponse } from "./release-response.ts";
 
 const expected = process.env.EXPECTED_REVISION ?? process.argv[2];
 const base = process.env.SMOKE_ORIGIN ?? SITE_ORIGIN;
 const evidence: { check: string; result: unknown }[] = [];
+const releaseDeadline = Date.now() + 90000;
 async function get(path: string, options?: RequestInit): Promise<Response> {
-  const response = await fetch(`${base}${path}`, {
-    ...options,
-    signal: AbortSignal.timeout(20000),
+  return releaseResponse(`${base}${path}`, expected, {
+    ...(options ? { init: options } : {}),
+    deadline: releaseDeadline,
   });
-  return response;
 }
-type ReleaseVersion = { revision: string; workerVersion: string; environment: string };
-let observed: ReleaseVersion | undefined;
-// DNS and Worker versions propagate after upload. Bound that grace period; never
-// retry application errors or weaken the exact commit/header assertions below.
-for (let attempt = 1; attempt <= 12; attempt++) {
-  let response: Response;
-  try {
-    response = await get("/api/version");
-  } catch (error) {
-    if (attempt === 12) throw error;
-    console.log(`Waiting for release network availability (${attempt}/12).`);
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    continue;
-  }
-  assert.equal(response.status, 200, "Release endpoint must be healthy");
-  const candidate = (await response.json()) as ReleaseVersion;
-  if (expected && candidate.revision !== expected && attempt < 12) {
-    console.log(`Waiting for expected commit propagation (${attempt}/12).`);
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    continue;
-  }
-  observed = candidate;
-  break;
-}
-assert.ok(observed, "No production revision observed within release grace period");
-const version = observed;
+const versionResponse = await get("/api/version");
+assert.equal(versionResponse.status, 200);
+const version = (await versionResponse.json()) as {
+  revision: string;
+  workerVersion: string;
+  environment: string;
+};
 if (expected) assert.equal(version.revision, expected);
 assert.match(version.revision, /^[a-f0-9]{40}$/);
 assert.equal(version.environment, "production");

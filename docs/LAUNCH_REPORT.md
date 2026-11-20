@@ -4,7 +4,7 @@ The safe public application is live from GitHub. Independent full production ver
 
 ## Implemented scope
 
-Nine indexable explanation/policy pages, six original 1200×630 social cards with SVG sources, initial-HTML metadata, canonical redirects, sitemap/robots, safe sample catalog, D1 readiness, release identity and security headers. Auth/payment endpoints fail closed. Chemistry Check remains planned; its public page is an explanation only. No private responses, test accounts, paid service, R2 bucket or payment provider is enabled.
+Nine indexable explanation/policy pages, six original 1200×630 social cards with SVG sources, initial-HTML metadata, canonical redirects, sitemap/robots, safe sample catalog, D1 readiness, release identity and security headers. Auth/payment endpoints fail closed. Chemistry Check remains planned; its public page is an explanation only. No private responses, test accounts, new paid subscription, R2 bucket or payment provider is enabled.
 
 ## External integration state
 
@@ -16,21 +16,21 @@ GitHub validation/release workflow and production main-only environment are conf
 
 ## Release evidence
 
-| Evidence                             | Observed result                                                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Branch/source                        | main, hmarquardt/cheapseggs; all completed changes pushed                                                                |
-| First independently verified release | `83ac36c255bff687cd338b80fa556d767b26a39f`                                                                               |
-| Worker version for that release      | `6bf0daac-42a3-4898-80fa-de62ffdbc04d`                                                                                   |
-| Independent smoke time               | 2026-11-20 15:11:43 UTC; all checks passed                                                                               |
-| Public delivery                      | Apex HTTPS, www 308, nine canonical pages, assets, robots and sitemap                                                    |
-| Metadata                             | Browser/Facebook/X/LinkedIn identical initial HTML; six 1200×630 PNG cards available                                     |
-| API/data                             | Health and D1 ready 200; exactly three reviewed public samples; no users; no FK violations                               |
-| Sensitive boundaries                 | Private placeholders 404 + noindex/no-store; auth and payments 503; no auth cookies                                      |
-| Security                             | CSP, HSTS, no-referrer, frame restriction and per-response revision verified                                             |
-| UI                                   | Live mobile landing/Chemistry pages have no horizontal overflow or page errors; screenshots reviewed                     |
-| Local validation                     | 38 unit/API tests, fresh SQLite/local D1 migration/seed checks, lint/types/config/build, 8 desktop/mobile browser checks |
+| Evidence                             | Observed result                                                                                                                  |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Branch/source                        | main, hmarquardt/cheapseggs; all completed changes pushed                                                                        |
+| First independently verified release | `83ac36c255bff687cd338b80fa556d767b26a39f`                                                                                       |
+| Worker version for that release      | `6bf0daac-42a3-4898-80fa-de62ffdbc04d`                                                                                           |
+| Independent smoke time               | 2026-11-20 15:11:43 UTC; all checks passed                                                                                       |
+| Public delivery                      | Apex HTTPS, www 308, nine canonical pages, assets, robots and sitemap                                                            |
+| Metadata                             | Browser/Facebook/X/LinkedIn identical initial HTML; six 1200×630 PNG cards available                                             |
+| API/data                             | Health and D1 ready 200; exactly three reviewed public samples; no users; no FK violations                                       |
+| Sensitive boundaries                 | Private placeholders 404 + noindex/no-store; auth and payments 503; no auth cookies                                              |
+| Security                             | CSP, HSTS, no-referrer, frame restriction and per-response revision verified                                                     |
+| UI                                   | Live mobile landing/Chemistry pages have no horizontal overflow or page errors; screenshots reviewed                             |
+| Local validation                     | 42 unit/API/release tests, fresh SQLite/local D1 migration/seed checks, lint/types/config/build, 8 desktop/mobile browser checks |
 
-The initial [release run](https://github.com/hmarquardt/cheapseggs/actions/runs/44758973504) failed smoke checks after deployment: first DNS propagation, then a missing asset revision header. The header was fixed with browser regression coverage. The [next run](https://github.com/hmarquardt/cheapseggs/actions/runs/44760304315) passed validation and published the verified release, but its immediate smoke saw the prior Worker during propagation. Independent checks subsequently passed with the exact new SHA/version. The verifier now bounds a propagation grace period and still fails application errors, commit mismatches after the deadline and all subsequent assertions. These failed runs are retained as evidence, not described as successful releases.
+The initial [release run](https://github.com/hmarquardt/cheapseggs/actions/runs/44758973504) failed smoke checks after deployment: first DNS propagation, then a missing asset revision header. The header was fixed with browser regression coverage. The [next run](https://github.com/hmarquardt/cheapseggs/actions/runs/44760304315) passed validation and published the verified release, but its immediate smoke saw the prior Worker during propagation. Independent checks subsequently passed with the exact new SHA/version. A further [run](https://github.com/hmarquardt/cheapseggs/actions/runs/44761180296) exposed a mixed-edge case: version was current while the following health response still carried the prior SHA. Independent full smoke then passed for `488a931b74b7424b5dfc72b7519a8736a43daee0` / Worker `782ae234-ae08-440c-a14b-46a4616a86a2`, including plain-HTTP to HTTPS redirect. The verifier now requires the exact revision per response within a shared propagation deadline. Four release-boundary tests cover mixed revisions, missing revision exhaustion, immediate application failure and network failure handling; no application/security assertion is relaxed. These failed runs are retained as evidence, not described as successful releases.
 
 Every later main release must complete validation, deployment and smoke in [GitHub Actions](https://github.com/hmarquardt/cheapseggs/actions/workflows/ci.yml). Its `production-verification` artifact records the deployed SHA, Cloudflare version and check time. Read `https://cheapseggs.com/api/version` for the current identity; documentation commits also release, so the first verified identity above is historical evidence rather than a hardcoded current version.
 
