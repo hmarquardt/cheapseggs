@@ -20,6 +20,25 @@ rate limits that store nothing in D1, wheel captions no longer overflow their we
 longer an empty circle before the first spin, optional sound ticks again, and "not tonight" can no
 longer push exclusions past the server bound.
 
+## Fail-closed fingerprint correction (2026-11-20, same day)
+
+The M2.1 fallback was removed after review: the fingerprint key is mandatory.
+
+| Item                | Observed                                                                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Release             | commit `fbb0ad581b8613be6e02e9610069cf1210212751`, Worker `640dc13d-32f3-4956-8ed4-d2b3c3472c29`                                         |
+| CI                  | [run 44801216297](https://github.com/hmarquardt/cheapseggs/actions/runs/44801216297) — validate, deploy and smoke passed                 |
+| `/api/version`      | `spinDigestKeyed: true`, `rateLimits {spin: true, wheel: true}`, production environment for the pushed commit                            |
+| Live spin           | 200 `Compliments, on the house`; wedge under the pointer = winner in the list; no fail-closed message                                    |
+| Browser privacy     | 0 cookies, 0 storage entries; only CSP refusal is the zone-injected Cloudflare beacon (unchanged)                                        |
+| Fail-closed (local) | eight key shapes return `503 {"error":"unavailable"}` with zero guest sessions and zero spins; `requestDigest` throws instead of hashing |
+| Rate limits         | unchanged: both bindings still bound and enforcing; `/api/v1/wheels/misfortune` still answers so the page explains itself                |
+| Evidence            | `artifacts/production-smoke.json`, `artifacts/production-fail-closed.json`                                                               |
+
+Decision record: [ADR 0009](DECISIONS/0009-mandatory-fingerprint-key.md) supersedes the fallback in
+[ADR 0008](DECISIONS/0008-m2-1-fingerprint-and-rate-limits.md) decision 2; every other M2.1 decision
+stands.
+
 ## M2 release — first playable Wheel of Misfortune (2026-11-20)
 
 Commit **`dbfdeeb8bc7a3d3895ac5584a9fd91a81fa73dd0`** was pushed to `main` and released by

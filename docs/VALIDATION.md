@@ -70,6 +70,20 @@ closed. Verified locally:
 | `npm run config:check`  | Local `wrangler.jsonc` declares the documented development key and production asserts **no** plaintext `SPIN_DIGEST_KEY` var (secret only)                                                                                                                               |
 | `npm run test:e2e`      | 18 passing; `npm run dev` now runs the required-key path, so browser coverage exercises the same branch as production                                                                                                                                                    |
 
+### Production release (fail-closed key)
+
+Release `fbb0ad581b8613be6e02e9610069cf1210212751` / Worker
+`640dc13d-32f3-4956-8ed4-d2b3c3472c29` passed [GitHub run
+44801216297](https://github.com/hmarquardt/cheapseggs/actions/runs/44801216297) (validate → deploy →
+independent smoke). The smoke now rejects an invalid key **and** requires a live spin, so it proves
+both halves of the contract on every release.
+
+Independent verification: `/api/version` reports `spinDigestKeyed: true` and
+`rateLimits {spin: true, wheel: true}` for the pushed commit; a live production spin returned
+`200` (`Compliments, on the house`) with the wedge under the pointer equal to the winner in the list,
+no fail-closed message, **0 cookies** and **0 storage entries**. Evidence:
+`artifacts/production-smoke.json`, `artifacts/production-fail-closed.json`.
+
 ### Verification limits (M2.1)
 
 Still not done: moderated adult usability testing, professional content review of the 44 published
