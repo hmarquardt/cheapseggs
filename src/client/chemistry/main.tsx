@@ -19,7 +19,7 @@ import {
 } from "../../domain/chemistry";
 import "../styles.css";
 import { syntheticResponses, syntheticSubmission } from "./demo";
-import { QuestionStep } from "./QuestionStep";
+import { type AcceptMode, modeForResponse, QuestionStep } from "./QuestionStep";
 import { ChemistryReport } from "./Report";
 import { Review } from "./Review";
 
@@ -46,6 +46,7 @@ function ChemistryApp() {
   const [depth, setDepth] = useState<ChemistryDepth>(25);
   const [index, setIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, QuestionResponse>>({});
+  const [acceptModes, setAcceptModes] = useState<Record<string, AcceptMode>>({});
   const [intimacyShared, setIntimacyShared] = useState(false);
   const [hardSignal, setHardSignal] = useState(false);
   const [message, setMessage] = useState("");
@@ -69,6 +70,7 @@ function ChemistryApp() {
     setDepth(next);
     setIndex(0);
     setMessage("");
+    setAcceptModes({});
     // Approvals never carry across a depth change; compatible answers may be reused.
     setIntimacyShared(false);
     setHardSignal(false);
@@ -86,6 +88,29 @@ function ChemistryApp() {
     // Editing answers invalidates a previous joint-signal approval.
     setHardSignal(false);
     setMessage("");
+  };
+
+  const changeAcceptMode = (
+    target: ChemistryQuestion,
+    response: QuestionResponse,
+    mode: AcceptMode,
+  ) => {
+    const accept: QuestionResponse["accept"] =
+      mode === "unset"
+        ? null
+        : mode === "any"
+          ? "any"
+          : mode === "none"
+            ? []
+            : Array.isArray(response.accept) && response.accept.length > 0
+              ? response.accept
+              : [];
+    setAcceptModes((current) => ({ ...current, [target.id]: mode }));
+    updateResponse({
+      ...response,
+      accept,
+      dealbreaker: accept === null ? false : response.dealbreaker,
+    });
   };
 
   const ownSubmission = useCallback((): AssessmentSubmission => {
@@ -146,6 +171,7 @@ function ChemistryApp() {
     setStage("landing");
     setIndex(0);
     setResponses({});
+    setAcceptModes({});
     setIntimacyShared(false);
     setHardSignal(false);
     setReport(null);
@@ -163,6 +189,8 @@ function ChemistryApp() {
     },
     { answered: 0, skipped: 0, not_applicable: 0, unanswered: 0, dealbreakers: 0 },
   );
+
+  const currentResponse = question ? (responses[question.id] ?? blankResponse(question)) : null;
 
   return (
     <>
@@ -188,7 +216,7 @@ function ChemistryApp() {
             onSample={sampleReport}
           />
         ) : null}
-        {stage === "quiz" && question ? (
+        {stage === "quiz" && question && currentResponse ? (
           <>
             <div class="chemistry-progress">
               <div class="chemistry-progress-track" aria-hidden="true">
@@ -206,8 +234,10 @@ function ChemistryApp() {
               question={question}
               number={index + 1}
               total={questions.length}
-              response={responses[question.id] ?? blankResponse(question)}
+              response={currentResponse}
+              mode={acceptModes[question.id] ?? modeForResponse(currentResponse)}
               onChange={updateResponse}
+              onModeChange={(mode) => changeAcceptMode(question, currentResponse, mode)}
               onBack={() => (index === 0 ? setStage("landing") : setIndex(index - 1))}
               onNext={() => {
                 setMessage("");
@@ -215,6 +245,7 @@ function ChemistryApp() {
                 else setIndex(index + 1);
               }}
               onSkip={(state) => {
+                setAcceptModes((current) => ({ ...current, [question.id]: "unset" }));
                 updateResponse({
                   ...(responses[question.id] ?? blankResponse(question)),
                   state,

@@ -7,12 +7,16 @@ import {
   type QuestionResponse,
 } from "../../domain/chemistry";
 
+export type AcceptMode = "unset" | "any" | "specific" | "none";
+
 export interface QuestionStepProps {
   question: ChemistryQuestion;
   number: number;
   total: number;
   response: QuestionResponse;
+  mode: AcceptMode;
   onChange: (next: QuestionResponse) => void;
+  onModeChange: (mode: AcceptMode) => void;
   onBack: () => void;
   onNext: () => void;
   onSkip: (state: Exclude<AnswerState, "answered">) => void;
@@ -20,28 +24,23 @@ export interface QuestionStepProps {
   message: string;
 }
 
-function acceptanceMode(accept: QuestionResponse["accept"]): "unset" | "any" | "none" | "specific" {
+function modeFromAccept(accept: QuestionResponse["accept"]): AcceptMode {
   if (accept === null) return "unset";
   if (accept === "any") return "any";
   return accept.length === 0 ? "none" : "specific";
 }
 
+export function modeForResponse(response: QuestionResponse): AcceptMode {
+  return modeFromAccept(response.accept);
+}
+
 export function QuestionStep(props: QuestionStepProps): JSX.Element {
-  const { question, response } = props;
+  const { question, response, mode } = props;
   const group = useId();
-  const mode = acceptanceMode(response.accept);
   const acceptedIds = Array.isArray(response.accept) ? response.accept : [];
   const answered = response.state === "answered" && response.own.length > 0;
 
-  const setMode = (next: "unset" | "any" | "none" | "specific") => {
-    const accept: QuestionResponse["accept"] =
-      next === "unset" ? null : next === "any" ? "any" : next === "none" ? [] : [...acceptedIds];
-    props.onChange({
-      ...response,
-      accept,
-      dealbreaker: accept === null ? false : response.dealbreaker,
-    });
-  };
+  const setMode = (next: AcceptMode) => props.onModeChange(next);
 
   const toggleOwn = (id: string) => {
     const own =
@@ -147,6 +146,12 @@ export function QuestionStep(props: QuestionStepProps): JSX.Element {
               </label>
             ))}
           </div>
+        ) : null}
+        {mode === "specific" && acceptedIds.length === 0 ? (
+          <p class="chemistry-warning" role="alert">
+            No answers ticked yet. Ticking none means you would accept none of these answers; it is
+            not a skip. Tick at least one, or choose “None of these” to say it outright.
+          </p>
         ) : null}
         {mode === "none" ? (
           <p class="chemistry-warning" role="alert">

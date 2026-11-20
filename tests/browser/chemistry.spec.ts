@@ -17,6 +17,10 @@ test("a visitor answers, reviews and sees a labelled demonstration report", asyn
 
   // Answer one question explicitly with an explicit acceptance rule.
   await page.locator(".chemistry-option input").first().check();
+  await page.getByRole("radio", { name: "Only the ones I tick" }).check();
+  await expect(page.getByText(/No answers ticked yet/)).toBeVisible();
+  await page.locator(".chemistry-accept-list input").first().check();
+  await expect(page.getByText(/No answers ticked yet/)).toBeHidden();
   await page.getByRole("radio", { name: "Any of these answers" }).check();
   await page.getByRole("button", { name: "Next question" }).click();
 
