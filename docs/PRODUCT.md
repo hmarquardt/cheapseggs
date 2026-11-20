@@ -2,7 +2,7 @@
 
 Status: proposed product, foundation implemented. Research checked 2026-11-19. Numerical targets below are validation hypotheses, not observed behavior.
 
-**2026-11-20 public launch scope:** the user authorized deployment of the safe current foundation. Implemented public pages explain the planned Wheel, Date Night Machine, Chemistry Check, Secret Menu and Cookbook, with about/privacy/preview terms, complete social metadata and a non-explicit lounge preview. Clear planned/not-playable labels remain. No registration, real assessment/invitation, stored private answer, generated recipe, playable wheel or checkout is enabled. Optional public-page analytics does not emit fictional product completions. [Launch report](LAUNCH_REPORT.md) separates implemented, deployed and independently verified results.
+**2026-11-20 public launch scope:** the user authorized deployment of the safe public foundation, and M2 later released the first playable guest Discovery wheel. Implemented public pages explain the live Wheel plus the planned Date Night Machine, Chemistry Check, Secret Menu and Cookbook, with about/privacy/preview terms, complete social metadata and a non-explicit lounge. The wheel serves a reviewed-editorial, non-graphic 44-entry catalog and states continuously that a spin is a prompt, never approval. No registration, real assessment/invitation, stored private answer, generated recipe or checkout is enabled. Optional public-page analytics covers public pages only; `/play/` emits nothing, so spins and boundaries are never measured. [Launch report](LAUNCH_REPORT.md) separates implemented, deployed and independently verified results.
 
 ## Promise and initial audience
 

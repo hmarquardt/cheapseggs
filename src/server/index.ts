@@ -1,14 +1,9 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { PUBLIC_PATHS, SITE_JSON_LD_HASH, SITE_ORIGIN } from "../config/site";
+import type { Bindings } from "./bindings";
+import { wheelRoutes } from "./wheel";
 
-type Bindings = {
-  DB: D1Database;
-  ASSETS: Fetcher;
-  APP_ENV: string;
-  DEPLOY_REVISION?: string;
-  WORKER_VERSION?: { id: string; tag: string; timestamp: string };
-};
 export const app = new Hono<{ Bindings: Bindings }>();
 
 app.use(
@@ -118,6 +113,7 @@ app.get("/api/v1/catalog/preview", async (c) => {
 });
 app.all("/api/auth/*", (c) => c.json({ error: "auth_not_configured" }, 503));
 app.all("/api/payments/*", (c) => c.json({ error: "payments_not_configured" }, 503));
+app.route("/api/v1", wheelRoutes);
 app.get("*", async (c) => {
   const pathname = new URL(c.req.url).pathname;
   if (

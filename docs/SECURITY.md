@@ -66,6 +66,27 @@ Before selling, counsel reviews digital-sales tax, refunds/withdrawal rights, au
 
 ## Security release gates
 
+### M2 guest wheel controls (implemented 2026-11-20)
+
+- Catalog: strict validation at build and read time, unreviewed drafts excluded from
+  wheel segments, category opt-in derived from the database flag (upserted so a stale
+  row cannot silently drop a consent gate), withdrawal effective on the next request
+  because nothing is cached.
+- Selection: client sends no candidate list, seed, weight or winner; crypto randomness
+  with rejection sampling; duplicates resolved by a unique idempotency key.
+- Guest state: no cookie and no browser storage; only a request digest and catalog
+  reference are persisted for 24h; explicit reset; bounded per-session budget; bounded
+  lazy purge. No spin, boundary or result is logged or sent to analytics.
+- Request boundary: same-origin + Fetch-Metadata check, JSON-only, 4 KiB cap, strict
+  schema, unknown category/supply ids rejected, generic error codes.
+- Verified by 35 automated unit/integration cases (including concurrent duplicates,
+  changed-digest conflicts, foreign sessions, expiry, reset, budget and withdrawal),
+  16 browser checks across desktop/mobile (axe, focus, reduced motion, keyboard,
+  no cookies/storage) and a production smoke that re-runs the gate assertions live.
+
+Open M2-era gates: distributed rate limiting, professional content review for heat 3,
+moderated adult usability testing, and any authentication or partner workflow.
+
 ### Chemistry Check extension (2026-11-20)
 
 Pre-date participants may know or trust each other much less than established partners. [Chemistry Check](CHEMISTRY_CHECK.md) adds link-forwarding/impersonation, harassment by repeated invitations, account-alias probing, hidden-dealbreaker inference, sparse sexual summaries and coercion to reveal “compatibility” results. Require assessment-specific authorization with no automatic couple creation, separately approved derived disclosures, fixed versioned decks/snapshots, pair/family release budgets, neutral block/withdrawal/expiry responses and no counterpart progress. Test that changing a private-only answer or hard rule cannot change any shared score, flag, prompt, coverage, availability or error branch. Payment never buys another person's answers, release permission, intimate-topic opt-in or ongoing access. No safety/identity verification or predictive/psychometric claim follows from a result.

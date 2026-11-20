@@ -1,0 +1,332 @@
+import { Hono } from "hono";
+import { SITE_ORIGIN } from "../config/site";
+import type { Activity } from "../domain/catalog";
+import { eligibleActivities } from "../domain/eligibility";
+import {
+  candidatePool,
+  canonicalRequest,
+  DURATION_OPTIONS,
+  ENERGY_OPTIONS,
+  ENVIRONMENT_OPTIONS,
+  EXPERIMENTATION_OPTIONS,
+  emptyHints,
+  GUEST_TOKEN,
+  HEAT_OPTIONS,
+  planSpin,
+  type SpinRequest,
+  type SpinResponse,
+  shortlistAround,
+  spinRequestSchema,
+  toEligibilityContext,
+  toResultDto,
+  toSegmentDtos,
+  type WheelCatalog,
+  type WheelConfigDto,
+} from "../domain/wheel";
+import {
+  countSessionSpins,
+  deleteGuestSession,
+  digest,
+  ensureGuestSession,
+  findSpin,
+  GUEST_TTL_SECONDS,
+  type GuestSession,
+  insertSpin,
+  loadWheelCatalog,
+  MAX_SPINS_PER_SESSION,
+  purgeExpired,
+  recentActivityIds,
+  type SpinRecord,
+} from "../services/wheel";
+import type { Bindings } from "./bindings";
+
+export const WHEEL_ID = "misfortune";
+const MAX_BODY_BYTES = 4096;
+
+export const wheelRoutes = new Hono<{ Bindings: Bindings }>();
+
+/**
+ * Same-origin defence in depth. The guest token is a header, not a cookie, so there
+ * is no ambient credential to forge; this still rejects cross-site posts outright.
+ */
+function originAllowed(env: Bindings, origin: string | undefined, requestUrl: string): boolean {
+  if (!origin) return true;
+  if (origin === SITE_ORIGIN) return true;
+  try {
+    if (new URL(origin).origin === new URL(requestUrl).origin) return true;
+  } catch {
+    return false;
+  }
+  // Local tooling only: `npm run dev:web` proxies from the Vite dev server.
+  if (env.APP_ENV !== "production" && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) {
+    return true;
+  }
+  return false;
+}
+
+function wheelDto(catalog: WheelCatalog) {
+  return {
+    id: catalog.wheel.id,
+    version: catalog.wheel.version,
+    title: catalog.wheel.title,
+    tagline: catalog.wheel.tagline,
+  };
+}
+
+function resultResponse(
+  request: SpinRequest,
+  catalog: WheelCatalog,
+  session: GuestSession,
+  plan: { winner: Activity; segments: Activity[]; selectedIndex: number },
+  eligibleCount: number,
+  replayed: boolean,
+): SpinResponse {
+  return {
+    status: "result",
+    spinId: request.idempotencyKey,
+    replayed,
+    guest: { id: session.id, expiresAt: session.expiresAt },
+    catalogRevision: catalog.revision,
+    wheel: wheelDto(catalog),
+    shortlist: toSegmentDtos(plan),
+    selectedIndex: plan.selectedIndex,
+    eligibleCount,
+    repeatPolicy: request.repeatPolicy,
+    result: toResultDto(plan.winner, catalog.categories),
+  };
+}
+
+function emptyResponse(
+  request: SpinRequest,
+  catalog: WheelCatalog,
+  session: GuestSession,
+): SpinResponse {
+  return {
+    status: "empty",
+    guest: { id: session.id, expiresAt: session.expiresAt },
+    catalogRevision: catalog.revision,
+    wheel: wheelDto(catalog),
+    eligibleCount: 0,
+    hints: emptyHints(catalog.activities, request),
+    message:
+      "Nothing fits those boundaries exactly. Nothing was loosened for you — adjust a limit and spin again.",
+  };
+}
+
+/** Rebuilds a wheel around an already-decided result without re-drawing the winner. */
+function replayPlan(catalog: WheelCatalog, activity: Activity) {
+  return shortlistAround(catalog.activities, activity, {
+    shortlistSize: catalog.wheel.shortlistSize,
+  });
+}
+
+function winnerFrom(catalog: WheelCatalog, spin: SpinRecord): Activity | null {
+  if (spin.wheelId !== catalog.wheel.id || spin.wheelVersion !== catalog.wheel.version) return null;
+  const activity = catalog.activities.find(
+    (entry) => entry.id === spin.activityId && entry.version === spin.activityVersion,
+  );
+  return activity ?? null;
+}
+
+wheelRoutes.get("/wheels/:wheel", async (c) => {
+  if (!c.env?.DB) return c.json({ error: "unavailable" }, 503);
+  if (c.req.param("wheel") !== WHEEL_ID) return c.json({ error: "not_found" }, 404);
+  let catalog: WheelCatalog | null;
+  try {
+    catalog = await loadWheelCatalog(c.env.DB, WHEEL_ID);
+  } catch {
+    return c.json({ error: "unavailable" }, 503);
+  }
+  if (!catalog) return c.json({ error: "not_found" }, 404);
+
+  const byHeat: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0 };
+  for (const activity of catalog.activities) {
+    byHeat[String(activity.heat)] = (byHeat[String(activity.heat)] ?? 0) + 1;
+  }
+  const config: WheelConfigDto = {
+    wheel: {
+      id: catalog.wheel.id,
+      version: catalog.wheel.version,
+      title: catalog.wheel.title,
+      tagline: catalog.wheel.tagline,
+      shortlistSize: catalog.wheel.shortlistSize,
+      selectionPolicy: catalog.wheel.selectionPolicy,
+    },
+    catalogRevision: catalog.revision,
+    counts: { total: catalog.activities.length, byHeat },
+    categories: catalog.categories.map((category) => ({ ...category })),
+    supplies: catalog.supplies.map((supply) => ({ ...supply })),
+    options: {
+      heat: HEAT_OPTIONS.map((option) => ({
+        key: option.key,
+        label: option.label,
+        level: option.level,
+        note: option.note,
+        available: (byHeat[String(option.level)] ?? 0) > 0,
+      })),
+      experimentation: EXPERIMENTATION_OPTIONS.map((option) => ({ ...option })),
+      energy: ENERGY_OPTIONS.map((option) => ({ ...option })),
+      duration: DURATION_OPTIONS.map((option) => ({
+        key: option.key,
+        label: option.label,
+        minutes: option.minutes,
+      })),
+      environment: ENVIRONMENT_OPTIONS.map((option) => ({ ...option })),
+    },
+    disclosure: {
+      promptNotConsent: true,
+      note: "A spin supplies a topic to discuss. It is never permission, an obligation or a dare anyone owes.",
+    },
+  };
+  return c.json(config);
+});
+
+function weightOf(catalog: WheelCatalog, activity: Activity): number {
+  if (catalog.wheel.selectionPolicy === "uniform") return 1;
+  return catalog.weights[activity.id] ?? 1;
+}
+
+wheelRoutes.post("/spins", async (c) => {
+  const env = c.env;
+  if (!env?.DB) return c.json({ error: "unavailable" }, 503);
+  if (!originAllowed(env, c.req.header("origin"), c.req.url)) {
+    return c.json({ error: "origin_rejected" }, 403);
+  }
+  if ((c.req.header("sec-fetch-site") ?? "") === "cross-site") {
+    return c.json({ error: "origin_rejected" }, 403);
+  }
+  const contentType = (c.req.header("content-type") ?? "").toLowerCase();
+  if (!contentType.startsWith("application/json")) {
+    return c.json({ error: "unsupported_media_type" }, 415);
+  }
+  const raw = await c.req.text();
+  if (raw.length > MAX_BODY_BYTES) return c.json({ error: "payload_too_large" }, 413);
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return c.json({ error: "invalid_request" }, 422);
+  }
+  const parsed = spinRequestSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "invalid_request" }, 422);
+  const request = parsed.data;
+  if (request.wheelId !== WHEEL_ID) return c.json({ error: "not_found" }, 404);
+
+  let catalog: WheelCatalog | null;
+  try {
+    catalog = await loadWheelCatalog(env.DB, WHEEL_ID);
+  } catch {
+    return c.json({ error: "unavailable" }, 503);
+  }
+  if (!catalog) return c.json({ error: "unavailable" }, 503);
+
+  // Unknown category/supply ids are rejected: they can only come from a tampered or
+  // stale client, and silently ignoring them would make the menu a lie.
+  const categoryIds = new Set(catalog.categories.map((category) => category.id));
+  const supplyIds = new Set(catalog.supplies.map((supply) => supply.id));
+  const unknown =
+    request.optIns.some((id) => !categoryIds.has(id)) ||
+    request.excludedCategories.some((id) => !categoryIds.has(id)) ||
+    request.supplies.some((id) => !supplyIds.has(id));
+  if (unknown) return c.json({ error: "invalid_request" }, 422);
+
+  const now = Math.floor(Date.now() / 1000);
+  const presented = c.req.header("x-cheapseggs-guest");
+  if (!presented || !GUEST_TOKEN.test(presented)) {
+    return c.json({ error: "guest_session_required" }, 400);
+  }
+  const session = await ensureGuestSession(env.DB, presented, now);
+  if (!session) return c.json({ error: "guest_session_required" }, 400);
+  try {
+    await purgeExpired(env.DB, now);
+  } catch {
+    // Cleanup is best effort; never fail a valid spin because a purge batch failed.
+  }
+
+  const requestDigest = await digest(canonicalRequest(request));
+  const existing = await findSpin(env.DB, request.idempotencyKey);
+  if (existing) {
+    if (existing.sessionId !== session.id || existing.requestDigest !== requestDigest) {
+      return c.json({ error: "spin_conflict" }, 409);
+    }
+    // A replay must not bypass withdrawal: the stored result has to still be current.
+    const activity = winnerFrom(catalog, existing);
+    if (!activity) return c.json({ error: "spin_invalidated" }, 409);
+    return c.json(
+      resultResponse(request, catalog, session, replayPlan(catalog, activity), 1, true),
+      200,
+    );
+  }
+
+  if ((await countSessionSpins(env.DB, session.id)) >= MAX_SPINS_PER_SESSION) {
+    return c.json({ error: "guest_budget_exhausted" }, 429);
+  }
+
+  const context = toEligibilityContext(request);
+  const eligible = eligibleActivities(catalog.activities, context);
+  if (eligible.length === 0) return c.json(emptyResponse(request, catalog, session), 200);
+
+  const recent =
+    request.repeatPolicy === "avoid-recent"
+      ? await recentActivityIds(env.DB, session.id)
+      : new Set<string>();
+  const pool = candidatePool(eligible, recent, request.repeatPolicy);
+  const plan = planSpin(
+    pool.map((activity) => ({ activity, weight: weightOf(catalog, activity) })),
+    { shortlistSize: catalog.wheel.shortlistSize },
+  );
+  if (!plan) return c.json(emptyResponse(request, catalog, session), 200);
+
+  const expiresAt = Math.min(now + GUEST_TTL_SECONDS, session.expiresAt);
+  const inserted = await insertSpin(
+    env.DB,
+    {
+      id: request.idempotencyKey,
+      sessionId: session.id,
+      requestDigest,
+      wheelId: catalog.wheel.id,
+      wheelVersion: catalog.wheel.version,
+      activityId: plan.winner.id,
+      activityVersion: plan.winner.version,
+      catalogRevision: catalog.revision,
+      expiresAt,
+    },
+    now,
+  );
+  if (!inserted) {
+    // Concurrent duplicate: the first writer wins and both callers see one result.
+    const raced = await findSpin(env.DB, request.idempotencyKey);
+    if (!raced || raced.sessionId !== session.id || raced.requestDigest !== requestDigest) {
+      return c.json({ error: "spin_conflict" }, 409);
+    }
+    const activity = winnerFrom(catalog, raced);
+    if (!activity) return c.json({ error: "spin_invalidated" }, 409);
+    return c.json(
+      resultResponse(
+        request,
+        catalog,
+        session,
+        replayPlan(catalog, activity),
+        eligible.length,
+        true,
+      ),
+      200,
+    );
+  }
+
+  return c.json(resultResponse(request, catalog, session, plan, eligible.length, false), 200);
+});
+
+/** Explicit reset: the only way guest state is deleted before its 24h expiry. */
+wheelRoutes.delete("/guest", async (c) => {
+  const env = c.env;
+  const presented = c.req.header("x-cheapseggs-guest");
+  if (env?.DB && presented && GUEST_TOKEN.test(presented)) {
+    try {
+      await deleteGuestSession(env.DB, presented);
+    } catch {
+      // Reset is idempotent; an unavailable database simply leaves nothing to delete.
+    }
+  }
+  return c.body(null, 204);
+});

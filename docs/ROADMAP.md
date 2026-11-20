@@ -2,6 +2,36 @@
 
 ## Current delivery
 
+**M2 — first playable Wheel of Misfortune (guest Discovery Mode): implemented and released
+2026-11-20.** A curated, versioned, non-explicit 44-entry catalog (plus 6 unreviewed heat-3
+drafts that can never be served), server-side eligibility filtering, cryptographically
+unbiased selection with a readable 8-wedge shortlist, heat/experimentation/energy/time/
+setting/supplies ceilings, category opt-ins and hard exclusions, a mobile-first retro-casino
+wheel with reduced-motion and optional sound, 24h guest sessions that store no boundaries,
+and 35 unit/integration plus 16 browser checks. Contract, retention and limitations are in
+[Wheel](WHEEL.md); release evidence is in [Validation](VALIDATION.md) and the
+[launch report](LAUNCH_REPORT.md).
+
+Acceptance status against the M2 table:
+
+| Item                     | Result                                                                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalog pipeline         | 50 immutable versions compiled from a typed editorial source; build/read validation; drafts excluded; 3 previews unchanged                                          |
+| Wheel configuration      | Heat, experimentation, energy, time, setting, supplies, opt-ins, exclusions and repeat policy are independent; least-permissive defaults; no default YES            |
+| Server selection         | Bounded strict input, deterministic eligibility, crypto-random authoritative result before animation, uniform and weighted tests                                    |
+| Guest session            | In-memory nonce + 24h D1 TTL, explicit reset, bounded budget, no intimate history, no cookies or browser storage                                                    |
+| Result claim/idempotency | Reviewed migration `0002`; repeats return the same result; changed digests and foreign sessions rejected; withdrawn results invalidated; no empty-pool relaxation   |
+| Wheel UI                 | Marquee + labelled SVG wheel, readable ordered-list alternative, optional muted sound, reduced-motion instant result, keyboard/focus handling, passing/exit obvious |
+| Safety/mode copy         | Result DTO carries `discovery-prompt-not-consent`; permanent copy distinguishes idea from approval; full metadata, stop/change affordances; no timers or rewards    |
+| Tests                    | Constraint boundary, weighted/uniform property, invalid/missing opt-ins, withdrawal, concurrent duplicates, mobile/keyboard/axe/reduced-motion                      |
+| Adult pilot              | **Outstanding**: local moderated adult usability testing, the 90% comprehension target and median first-result measurement still need real participants             |
+
+**Partially satisfied, and deliberately not claimed:** "leaving 3 current fixtures remain public
+previews" holds (exactly three `public_preview` rows), but professional review of the 44
+published entries is an editorial lint, not a certified review; heat 3 stays unpublished until
+the content/market gate is satisfied. Public access for a real adult pilot also still depends on
+the market review listed in "Decisions still needed".
+
 **M1a — Local architecture and foundation: implemented.** Product/commercial research, threat model, brand/UX specification, one Worker shell, three safe public fixtures, SQL migrations, consent/entitlement/selection primitives, fail-closed integration boundaries and CI definition. [Validation](VALIDATION.md) reports executed checks. At the original foundation checkpoint there was no playable wheel, live authentication, real private-data storage, payment processing, R2 bucket, public launch or production resource. The public-release update below supersedes its deployment status.
 
 Approval for this foundation does not approve the entire application, billable provisioning or deployment. The next milestone below is proposed work, not implied authorization to execute it now.

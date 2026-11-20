@@ -2,6 +2,16 @@
 
 Status: accepted foundation stack; production auth, age assurance and commerce integrations remain gated. Sources checked 2026-11-19.
 
+**M2 update, 2026-11-20:** the first playable Wheel of Misfortune (guest Discovery Mode) is
+implemented and released. A typed editorial catalog (`src/content/discovery/catalog.ts`) is
+validated and compiled into idempotent seeds by `scripts/build-seeds.ts`; D1 remains the read
+authority and is reloaded per request with no authorization cache. `src/domain/wheel.ts` holds the
+pure request contract, eligibility mapping, weighted selection and shortlist construction;
+`src/services/wheel.ts` owns catalog/guest persistence; `src/server/wheel.ts` is the HTTP boundary
+mounted at `/api/v1`. The client is a small Preact module tree under `src/client/wheel/`. Guest state
+is a client-proposed nonce with a 24h TTL (migration `0002`), never a cookie, and no boundary values
+are stored. See [Wheel](WHEEL.md) for the contract and [ADR 0007](DECISIONS/0007-m2-guest-wheel.md).
+
 **Production integration update, 2026-11-20:** the user authorized public deployment. The safe public release configuration is implemented with explicit local/production bindings, Worker-first asset handling, canonical redirects, initial-HTML metadata and a public-only CFLab adapter. Private auth/assessment/activity/payment functionality is still gated. See [Deployment](DEPLOYMENT.md) and [launch report](LAUNCH_REPORT.md) for actual operational state; earlier local-only statements below describe the initial stage.
 
 ## Stack decision

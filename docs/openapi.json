@@ -1,11 +1,15 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CheapSeggs Foundation API",
-    "version": "0.1.0",
-    "description": "Only local foundation routes. No private game, authentication or billing implementation."
+    "title": "CheapSeggs public and guest API",
+    "version": "0.2.0",
+    "description": "Implemented routes only: safe public metadata, guest catalog preview, wheel configuration and the idempotent guest Discovery spin. No authentication, private game, assessment or billing implementation."
   },
-  "servers": [{ "url": "http://127.0.0.1:8787" }],
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8787"
+    }
+  ],
   "paths": {
     "/api/health": {
       "get": {
@@ -20,9 +24,15 @@
                   "additionalProperties": false,
                   "required": ["status", "service", "stage"],
                   "properties": {
-                    "status": { "const": "ok" },
-                    "service": { "const": "cheapseggs" },
-                    "stage": { "const": "foundation" }
+                    "status": {
+                      "const": "ok"
+                    },
+                    "service": {
+                      "const": "cheapseggs"
+                    },
+                    "stage": {
+                      "const": "foundation"
+                    }
                   }
                 }
               }
@@ -42,7 +52,11 @@
                 "schema": {
                   "type": "object",
                   "required": ["status"],
-                  "properties": { "status": { "const": "ready" } }
+                  "properties": {
+                    "status": {
+                      "const": "ready"
+                    }
+                  }
                 }
               }
             }
@@ -54,7 +68,11 @@
                 "schema": {
                   "type": "object",
                   "required": ["status"],
-                  "properties": { "status": { "const": "unavailable" } }
+                  "properties": {
+                    "status": {
+                      "const": "unavailable"
+                    }
+                  }
                 }
               }
             }
@@ -74,7 +92,9 @@
                   "type": "object",
                   "required": ["items", "catalogVersion"],
                   "properties": {
-                    "catalogVersion": { "const": "sample-1" },
+                    "catalogVersion": {
+                      "const": "sample-1"
+                    },
                     "items": {
                       "type": "array",
                       "maxItems": 12,
@@ -83,11 +103,23 @@
                         "additionalProperties": false,
                         "required": ["id", "version", "title", "description", "durationMinutes"],
                         "properties": {
-                          "id": { "type": "string" },
-                          "version": { "type": "integer", "minimum": 1 },
-                          "title": { "type": "string" },
-                          "description": { "type": "string" },
-                          "durationMinutes": { "type": "integer", "minimum": 1 }
+                          "id": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "durationMinutes": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
                         }
                       }
                     }
@@ -99,8 +131,261 @@
           "500": {
             "description": "Generic request failure",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/wheels/misfortune": {
+      "get": {
+        "operationId": "wheelConfig",
+        "summary": "Published wheel configuration and catalog counts",
+        "responses": {
+          "200": {
+            "description": "Wheel configuration with no visitor data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spins": {
+      "post": {
+        "operationId": "spin",
+        "summary": "Guest Discovery spin (server-side eligibility and authoritative result)",
+        "parameters": [
+          {
+            "name": "x-cheapseggs-guest",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "wheelId",
+                  "heat",
+                  "experimentation",
+                  "energy",
+                  "duration",
+                  "environment",
+                  "supplies",
+                  "optIns",
+                  "excludedCategories",
+                  "excludedActivities",
+                  "repeatPolicy",
+                  "idempotencyKey"
+                ],
+                "properties": {
+                  "wheelId": {
+                    "const": "misfortune"
+                  },
+                  "heat": {
+                    "enum": ["mild", "medium", "spicy", "habanero"]
+                  },
+                  "experimentation": {
+                    "enum": ["classic", "curious", "adventurous"]
+                  },
+                  "energy": {
+                    "enum": ["low", "moderate", "high"]
+                  },
+                  "duration": {
+                    "enum": ["quickie", "30-minutes", "hour", "all-evening"]
+                  },
+                  "environment": {
+                    "enum": ["home", "hotel", "getaway", "private-other"]
+                  },
+                  "supplies": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 40
+                    }
+                  },
+                  "optIns": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 40
+                    }
+                  },
+                  "excludedCategories": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 40
+                    }
+                  },
+                  "excludedActivities": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 60
+                    }
+                  },
+                  "repeatPolicy": {
+                    "enum": ["allow", "avoid-recent"]
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authoritative result or an explained empty pool",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "enum": ["result", "empty"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or malformed guest nonce",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cross-site request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict or invalidated result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Guest spin budget exhausted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest": {
+      "delete": {
+        "operationId": "resetGuest",
+        "summary": "Delete the presenting guest session and its spins",
+        "parameters": [
+          {
+            "name": "x-cheapseggs-guest",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session deleted (or nothing to delete)"
           }
         }
       }
@@ -112,7 +397,11 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["error"],
-        "properties": { "error": { "type": "string" } }
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
       }
     }
   }

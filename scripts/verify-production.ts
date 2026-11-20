@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { PUBLIC_PATHS, SITE_ORIGIN } from "../src/config/site.ts";
 import { releaseResponse } from "./release-response.ts";
@@ -34,6 +35,72 @@ for (const path of ["/api/health", "/api/ready", "/api/v1/catalog/preview"]) {
   if (path.endsWith("preview")) assert.equal((body as { items: unknown[] }).items.length, 3);
   evidence.push({ check: path, result: response.status });
 }
+
+// -------------------------------------------------- M2 guest discovery wheel (live)
+const wheelResponse = await get("/api/v1/wheels/misfortune");
+assert.equal(wheelResponse.status, 200);
+assert.equal(wheelResponse.headers.get("cache-control"), "no-store");
+assert.equal(wheelResponse.headers.get("set-cookie"), null);
+const wheelConfig = (await wheelResponse.json()) as {
+  counts: { total: number; byHeat: Record<string, number> };
+  options: { heat: { key: string; available: boolean }[] };
+  disclosure: { promptNotConsent: boolean };
+  categories: { requiredOptIn: boolean }[];
+};
+assert.ok(wheelConfig.counts.total >= 40 && wheelConfig.counts.total <= 60, "catalog size");
+// Content gate: unreviewed heat-3 material must stay unpublished in production.
+assert.equal(wheelConfig.counts.byHeat["3"], 0);
+assert.equal(
+  wheelConfig.options.heat.find((option) => option.key === "habanero")?.available,
+  false,
+);
+assert.equal(wheelConfig.disclosure.promptNotConsent, true);
+assert.equal(wheelConfig.categories.filter((category) => category.requiredOptIn).length, 3);
+
+const guest = randomBytes(32).toString("hex");
+const spinBody = { wheelId: "misfortune", idempotencyKey: crypto.randomUUID(), heat: "mild" };
+const postSpin = (body: unknown) =>
+  get("/api/v1/spins", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-cheapseggs-guest": guest },
+    body: JSON.stringify(body),
+  });
+const spinResponse = await postSpin(spinBody);
+assert.equal(spinResponse.status, 200);
+assert.equal(spinResponse.headers.get("set-cookie"), null);
+assert.equal(spinResponse.headers.get("cache-control"), "no-store");
+const spin = (await spinResponse.json()) as {
+  status: string;
+  selectedIndex: number;
+  shortlist: { id: string }[];
+  catalogRevision: string;
+  result: { id: string; heat: number; mode: string };
+  guest: { id: string };
+};
+assert.equal(spin.status, "result");
+assert.equal(spin.result.mode, "discovery-prompt-not-consent");
+assert.equal(spin.guest.id, guest);
+assert.equal(spin.result.heat, 0, "mild ceiling must hold in production");
+assert.ok(spin.shortlist.length > 0 && spin.shortlist.length <= 8);
+assert.equal(spin.shortlist[spin.selectedIndex]?.id, spin.result.id);
+assert.match(spin.catalogRevision, /^misfortune@1\+[0-9a-f]{16}$/);
+
+const replay = (await (await postSpin(spinBody)).json()) as {
+  result: { id: string };
+  replayed: boolean;
+};
+assert.equal(replay.result.id, spin.result.id, "identical requests replay one result");
+assert.equal(replay.replayed, true);
+const conflict = await postSpin({ ...spinBody, heat: "spicy" });
+assert.equal(conflict.status, 409);
+assert.deepEqual(await conflict.json(), { error: "spin_conflict" });
+const reset = await get("/api/v1/guest", {
+  method: "DELETE",
+  headers: { "x-cheapseggs-guest": guest },
+});
+assert.equal(reset.status, 204);
+evidence.push({ check: "/api/v1/spins", result: spin.result.id });
+evidence.push({ check: "guest-wheel", result: "result/replay/conflict/reset pass" });
 const agents = {
   browser: "Mozilla/5.0 (compatible; CheapSeggsReleaseCheck/1.0)",
   facebook: "facebookexternalhit/1.1",

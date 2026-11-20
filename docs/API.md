@@ -4,16 +4,35 @@ Choose **REST with OpenAPI 3.1**, same-origin JSON, versioned domain routes unde
 
 ## Implemented now
 
-| Route                       | Behavior                                                                                       |
-| --------------------------- | ---------------------------------------------------------------------------------------------- |
-| GET /api/health             | 200 service/stage only; no dependency details                                                  |
-| GET /api/ready              | 200 if local migrated catalog is queryable, otherwise generic 503                              |
-| GET /api/v1/catalog/preview | At most 12 explicitly public non-intimate free fixture records, fixed DTO, no personal context |
-| /api/auth/*                 | 503 auth_not_configured                                                                        |
-| /api/payments/*             | 503 payments_not_configured                                                                    |
-| Other API routes            | 404 not_found; no private CRUD implementation                                                  |
+| Route                         | Behavior                                                                                                                                                                                                                     |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET /api/health               | 200 service/stage only; no dependency details                                                                                                                                                                                |
+| GET /api/ready                | 200 if local migrated catalog is queryable, otherwise generic 503                                                                                                                                                            |
+| GET /api/v1/catalog/preview   | At most 12 explicitly public non-intimate free fixture records, fixed DTO, no personal context                                                                                                                               |
+| GET /api/v1/wheels/misfortune | Published wheel configuration only: catalog counts by heat, categories (including which require opt-in), supply vocabulary, option lists and disclosure text. No visitor or session data.                                    |
+| POST /api/v1/spins            | Guest Discovery spin. Strict bounded body, same-origin JSON, server-side eligibility and authoritative result, idempotent per client key, 24h guest TTL, `spins` never accepted from a partner or on another guest's behalf. |
+| DELETE /api/v1/guest          | Explicit reset: deletes the presenting guest session and cascades its spins. 204, idempotent, never reveals whether the session existed.                                                                                     |
+| /api/auth/*                   | 503 auth_not_configured                                                                                                                                                                                                      |
+| /api/payments/*               | 503 payments_not_configured                                                                                                                                                                                                  |
+| Other API routes              | 404 not_found; no private CRUD implementation                                                                                                                                                                                |
 
 `GET /api/version` additionally exposes the non-secret Git commit, Worker version and environment for release verification. All API responses are no-store/noindex. Samples are intentionally safe public previews; the real adult catalog must require the market/assurance policy before delivery. Health is not readiness. No D1 query text or internal failure objects returned.
+
+### Guest spin request/response contract (M2, implemented)
+
+`POST /api/v1/spins` requires `content-type: application/json` and the opaque
+`x-cheapseggs-guest` nonce (32 random bytes, hex). Body: `wheelId`, `heat`,
+`experimentation`, `energy`, `duration`, `environment`, `supplies[]`, `optIns[]`,
+`excludedCategories[]`, `excludedActivities[]`, `repeatPolicy`, `idempotencyKey`
+(UUID v4). Unknown keys, unknown category/supply ids, bodies over 4 KiB, cross-site
+origins and non-JSON requests are rejected before any database write.
+
+Responses: `200 {status:"result"}` with the shortlist, `selectedIndex`, the full
+result DTO (`mode: "discovery-prompt-not-consent"`), `eligibleCount` and the guest
+expiry; `200 {status:"empty"}` with neutral hints; `400 guest_session_required`;
+`409 spin_conflict` / `409 spin_invalidated`; `413`/`415`/`422` for malformed input;
+`429 guest_budget_exhausted`; `503 unavailable`. See [Wheel](WHEEL.md) for the
+selection, retention and accessibility contract.
 
 ## Proposed route surface by release
 
