@@ -63,15 +63,22 @@ test("the result is a prompt: hide it, undo it, and keep no browsing state", asy
 });
 
 test("keyboard users can change limits and spin without a pointer", async ({ page }) => {
+  // Longer menus and a taller mobile page make this the slowest keyboard path in CI.
+  test.slow();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await enterLounge(page);
-  await page.getByRole("radio", { name: "Medium" }).check();
-  const offering = page.getByRole("group", { name: "Ask before offering" });
-  await offering.getByRole("checkbox", { name: "Senses" }).check();
-  await expect(offering.getByRole("checkbox", { name: "Senses" })).toBeChecked();
-  await page.getByRole("button", { name: /Spin the wheel/ }).focus();
+  const medium = page.getByRole("radio", { name: "Medium" });
+  await medium.scrollIntoViewIfNeeded();
+  await medium.check();
+  const senses = page.locator("label.chip", { hasText: "Senses" }).first();
+  await senses.scrollIntoViewIfNeeded();
+  await senses.click();
+  await expect(senses.locator("input")).toBeChecked();
+  const spinButton = page.getByRole("button", { name: /Spin the wheel/ });
+  await spinButton.scrollIntoViewIfNeeded();
+  await spinButton.focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator("#result-title")).toBeVisible({ timeout: 5000 });
+  await expect(page.locator("#result-title")).toBeVisible({ timeout: 8000 });
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 

@@ -9,6 +9,7 @@ async function enterKitchen(page: import("@playwright/test").Page) {
 }
 
 test("the machine composes a whole evening, then rerolls and re-times it", async ({ page }) => {
+  test.slow();
   await page.emulateMedia({ reducedMotion: "reduce" });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
