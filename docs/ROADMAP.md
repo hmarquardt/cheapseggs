@@ -12,6 +12,14 @@ and 35 unit/integration plus 16 browser checks. Contract, retention and limitati
 [Wheel](WHEEL.md); release evidence is in [Validation](VALIDATION.md) and the
 [launch report](LAUNCH_REPORT.md).
 
+**M2.1 — Wheel privacy and abuse hardening: implemented and released 2026-11-20.** The persisted
+spin fingerprint is now HMAC-keyed so a database reader cannot enumerate heat, opt-ins or hard-NOs
+(visible through `/api/version`, gated by the production check); the public endpoints carry
+Cloudflare-native per-location rate limits that store nothing in D1; and four demonstrated UI
+defects were fixed (captions overflowing the rim because Preact ignored `textAnchor`, an empty disc
+before the first spin, sound ticks that never played, and unbounded "not tonight" exclusions).
+[ADR 0008](DECISIONS/0008-m2-1-fingerprint-and-rate-limits.md).
+
 Acceptance status against the M2 table:
 
 | Item                     | Result                                                                                                                                                              |
@@ -25,6 +33,7 @@ Acceptance status against the M2 table:
 | Safety/mode copy         | Result DTO carries `discovery-prompt-not-consent`; permanent copy distinguishes idea from approval; full metadata, stop/change affordances; no timers or rewards    |
 | Tests                    | Constraint boundary, weighted/uniform property, invalid/missing opt-ins, withdrawal, concurrent duplicates, mobile/keyboard/axe/reduced-motion                      |
 | Adult pilot              | **Outstanding**: local moderated adult usability testing, the 90% comprehension target and median first-result measurement still need real participants             |
+| Abuse protection (M2.1)  | Cloudflare rate limit bindings on both public endpoints, keyed by client address, failing open; approximate and per-location, so a speed bump rather than a wall    |
 
 **Partially satisfied, and deliberately not claimed:** "leaving 3 current fixtures remain public
 previews" holds (exactly three `public_preview` rows), but professional review of the 44

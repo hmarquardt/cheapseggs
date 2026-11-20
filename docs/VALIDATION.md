@@ -1,5 +1,44 @@
 # Validation evidence
 
+## M2.1 wheel privacy and abuse hardening (2026-11-20)
+
+Bounded maintenance pass on the released M2 wheel. Validated locally on macOS arm64, Node 26.13.0.
+
+| Check                  | Observed result                                                                                                                                                                                                                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint`         | Biome recommended rules pass (one pre-existing advisory about `innerText` in a browser test)                                                                                                                                                                                                          |
+| `npm run typecheck`    | Strict TypeScript passes                                                                                                                                                                                                                                                                              |
+| `npm run config:check` | Adds assertions for the two rate limit bindings: names, integer namespaces, 60 s period, limit ceiling, and four distinct namespace ids across local/production                                                                                                                                       |
+| `npm run seeds:check`  | Unchanged: 50 versions, both seed files match committed output                                                                                                                                                                                                                                        |
+| `npm test`             | **89 passing** unit/API tests in 8 files (was 77): keyed fingerprint, unkeyed fallback visibility, rate-limited 429 before guest state, limiter fail-open, result/wedge identity, 30-spin hard-NO and opt-in sweep, client state that tries to widen eligibility, repeat avoidance in a one-idea pool |
+| `npm run test:db`      | Unchanged schema constraints still pass                                                                                                                                                                                                                                                               |
+| `npm run test:e2e`     | **18 passing** browser tests (was 16): adds wheel geometry assertions — the wedge under the pointer equals the winner marked in the list, every caption stays inside the rim, and mobile has no horizontal overflow                                                                                   |
+| `npm run build`        | Vite + `wrangler deploy --dry-run` compile cleanly and print both rate limit bindings                                                                                                                                                                                                                 |
+
+Defects found and corrected in this pass (all reproducible before the fix):
+
+1. **Wheel captions overflowed the rim and collided.** Preact wrote the camelCase SVG prop
+   `textAnchor` verbatim, so the SVG renderer ignored it; every caption was left-anchored at the
+   wedge midline and ran outward into the neighbouring wedge (visible in
+   `artifacts/production-wheel-mobile.png`). Captions are now radial, anchored at the rim, flipped
+   on the left half, and asserted by a geometry test.
+2. **The first impression was an empty circle.** With no shortlist yet the disc rendered bulbs, a
+   rim and a hub around nothing. It now shows eight dim placeholder wedges and a `SPIN` hub.
+3. **The optional sound only chimed at the end.** `playTick` existed but was never called, so the
+   "ticking wheel" never ticked. Ticks are now scheduled with a decelerating cadence and cancelled
+   when a spin ends, restarts, or the page unloads.
+4. **"Not tonight" could wedge a spin.** Exclusions grew past the server's 50-item bound and the
+   next spin would 422. The client list is now capped, newest first.
+5. **A 429 had no honest message.** `rate_limited` fell through to "The wheel could not answer".
+
+### Verification limits (M2.1)
+
+Still not done: moderated adult usability testing, professional content review of the 44 published
+entries, real assistive-technology passes (VoiceOver/NVDA), and load testing. Rate limiting is
+approximate and per Cloudflare location, so it slows bulk automation rather than stopping it. The
+Cloudflare Web Analytics beacon is not served today; disabling it in the dashboard remains a
+recommendation, not a verified configuration change (the deployment token has zone read only).
+
 ## M2 guest Discovery wheel (2026-11-20)
 
 Implemented and validated locally on macOS arm64, Node 26.13.0 / npm 11.20.0.
@@ -57,9 +96,9 @@ Evidence: `artifacts/production-smoke.json`, `artifacts/production-wheel-mobile.
 ### Verification limits (M2)
 
 Not done: professional content review of the 44 published entries, moderated adult
-usability testing (the 90% comprehension and <60 s first-result targets), distributed
-rate limiting, screen-reader testing on real devices/assistive tech, load testing, and
-any authentication, partner, assessment or payment workflow. The catalog is
+usability testing (the 90% comprehension and <60 s first-result targets), screen-reader
+testing on real devices/assistive tech, load testing, and any authentication, partner,
+assessment or payment workflow. Cloudflare rate limiting landed in M2.1. The catalog is
 non-graphic by construction and by lint, not by professional editorial sign-off.
 
 ## Public-release update (2026-11-20)

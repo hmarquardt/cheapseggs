@@ -19,14 +19,23 @@ tagged Worker upload, production smoke).
 | Idempotency in production | same key/body replays one result; changed body → `409 spin_conflict`; `DELETE /api/v1/guest` → 204 (all asserted by the smoke)                                                                                                                                                                    |
 | Real device run           | iPhone 13 viewport against `https://cheapseggs.com/play/`: acknowledgement → spin → result card (`Kitchen sway`, Movement/Mild/10 min), 8-item list with the winner marked, no horizontal overflow, **0 cookies, 0 local/session storage**, screenshot in `artifacts/production-wheel-mobile.png` |
 
-### Deliberate boundary observation
+### Deliberate boundary observation (corrected 2026-11-20, M2.1)
 
-The live page logs one blocked-resource console error:
-`static.cloudflareinsights.com/beacon.min.js` violates `script-src 'self'`. Cloudflare injects
-that automatic Web Analytics beacon at the edge; our CSP blocks it, which is the intended
-behaviour (CheapSeggs ships its own consented, minimised CFLab adapter and no third-party
-script). It is not an application error, no request reached the collector from our code, and the
-fix would be to permit a tracker we did not choose — so it stays blocked and documented.
+The original M2 note claimed Cloudflare injected the automatic Web Analytics beacon
+(`static.cloudflareinsights.com/beacon.min.js`) into our HTML and that CSP blocked it. That claim
+did not survive re-verification. Fetching `/`, `/privacy/` and `/play/` on 2026-11-20 (including
+cache-busted and `cache-control: no-cache` requests) returned **no** beacon `<script>` tag and no
+`data-cf-beacon` attribute; the only Cloudflare-injected headers are `report-to`/`nel` endpoint
+descriptors, which carry no page content. So the beacon is not currently enabled for this zone and
+the CSP was never actually exercised against it.
+
+The position is unchanged and simpler: `script-src 'self'` remains the backstop, so if Web
+Analytics is switched on in the Cloudflare dashboard the tag would load and be refused. CheapSeggs
+ships only the consented, path-allowlisted CFLab adapter. Disabling Cloudflare Web Analytics is a
+zone-level dashboard setting (`Analytics → Web Analytics`, automatic setup) that neither the Worker
+config nor the build can control; the deployment token used here has zone read only, so it is
+recorded as a recommendation rather than changed silently. Nothing needs to change for privacy
+today because no beacon is served.
 
 ### What this release does and does not claim
 
