@@ -26,9 +26,12 @@
     "db:migrate": "wrangler d1 migrations apply DB --local",
     "db:seed": "wrangler d1 execute DB --local --file seeds/local.sql",
     "db:check": "wrangler d1 execute DB --local --command 'PRAGMA foreign_key_check; SELECT count(*) AS sample_activities FROM activity_versions;'",
-    "check": "npm run lint && npm run typecheck && npm run config:check && npm run seeds:check && npm test && npm run test:db && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run config:check && npm run seeds:check && npm run auth:schema:check && npm test && npm run test:db && npm run build && npm run test:auth:worker",
+    "auth:schema:check": "node --experimental-strip-types scripts/generate-auth-schema.ts --check",
+    "test:auth:worker": "node --experimental-strip-types scripts/check-auth-worker.ts"
   },
   "dependencies": {
+    "better-auth": "1.7.27",
     "hono": "4.13.19",
     "preact": "11.2.0",
     "zod": "4.6.7"
@@ -40,6 +43,7 @@
     "@playwright/test": "1.65.1",
     "@resvg/resvg-js": "2.6.2",
     "@types/node": "26.6.6",
+    "miniflare": "5.20261118.0-beta",
     "typescript": "7.0.2",
     "vite": "8.3.8",
     "vitest": "5.1.1",

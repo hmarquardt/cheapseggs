@@ -1,11 +1,14 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CheapSeggs public and guest API",
-    "version": "0.2.0",
-    "description": "Implemented routes only: safe public metadata, guest catalog preview, wheel configuration and the idempotent guest Discovery spin. No authentication, private game, assessment or billing implementation."
+    "title": "CheapSeggs public, guest and account API",
+    "version": "0.3.0",
+    "description": "Implemented public/guest routes and reviewed M3A email-code account lifecycle. Real age assurance, restricted content, private matching and payments remain unavailable."
   },
   "servers": [
+    {
+      "url": "https://cheapseggs.com"
+    },
     {
       "url": "http://127.0.0.1:8787"
     }
@@ -160,7 +163,9 @@
             "description": "Approximate per-location rate limit exceeded (rate_limited)",
             "headers": {
               "retry-after": {
-                "schema": { "type": "string" },
+                "schema": {
+                  "type": "string"
+                },
                 "description": "Seconds until the window resets"
               }
             },
@@ -365,7 +370,9 @@
             "description": "Guest spin budget exhausted (guest_budget_exhausted) or the approximate per-location Cloudflare rate limit was exceeded (rate_limited, with a retry-after header)",
             "headers": {
               "retry-after": {
-                "schema": { "type": "string" },
+                "schema": {
+                  "type": "string"
+                },
                 "description": "Present for rate_limited; seconds until the window resets"
               }
             },
@@ -411,10 +418,18 @@
                     "rateLimits"
                   ],
                   "properties": {
-                    "service": { "const": "cheapseggs" },
-                    "revision": { "type": "string" },
-                    "workerVersion": { "type": ["string", "null"] },
-                    "environment": { "type": "string" },
+                    "service": {
+                      "const": "cheapseggs"
+                    },
+                    "revision": {
+                      "type": "string"
+                    },
+                    "workerVersion": {
+                      "type": ["string", "null"]
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
                     "spinDigestKeyed": {
                       "type": "boolean",
                       "description": "A valid HMAC key is configured, so the spin endpoint will not fail closed"
@@ -424,8 +439,12 @@
                       "additionalProperties": false,
                       "required": ["spin", "wheel"],
                       "properties": {
-                        "spin": { "type": "boolean" },
-                        "wheel": { "type": "boolean" }
+                        "spin": {
+                          "type": "boolean"
+                        },
+                        "wheel": {
+                          "type": "boolean"
+                        }
                       }
                     }
                   }
@@ -454,6 +473,475 @@
         "responses": {
           "204": {
             "description": "Session deleted (or nothing to delete)"
+          }
+        }
+      }
+    },
+    "/api/account/status": {
+      "get": {
+        "summary": "Email sign-in availability; ageVerificationAvailable and restrictedContentAvailable remain false",
+        "responses": {
+          "200": {
+            "description": "Email sign-in availability; ageVerificationAvailable and restrictedContentAvailable remain false"
+          },
+          "401": {
+            "description": "No valid session"
+          },
+          "503": {
+            "description": "Not configured or unavailable"
+          }
+        }
+      }
+    },
+    "/api/account": {
+      "get": {
+        "summary": "Current verified-inbox identity, adult declaration and own preview category approvals",
+        "responses": {
+          "200": {
+            "description": "Current verified-inbox identity, adult declaration and own preview category approvals"
+          },
+          "401": {
+            "description": "No valid session"
+          },
+          "503": {
+            "description": "Not configured or unavailable"
+          }
+        }
+      }
+    },
+    "/api/account/sessions": {
+      "get": {
+        "summary": "Own session IDs/times, never bearer tokens",
+        "responses": {
+          "200": {
+            "description": "Own session IDs/times, never bearer tokens"
+          },
+          "401": {
+            "description": "No valid session"
+          },
+          "503": {
+            "description": "Not configured or unavailable"
+          }
+        }
+      }
+    },
+    "/api/auth/email-otp/send-verification-otp": {
+      "post": {
+        "description": "Same-origin JSON only; exact Origin, same-origin Fetch Metadata when present and X-CheapSeggs-Action: account required. 4 KiB limit. Owner-scoped sessions; deletion requires authentication within five minutes. No bearer token in returned JSON.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CheapSeggs-Action",
+            "required": true,
+            "schema": {
+              "const": "account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  },
+                  "adult": {
+                    "const": true
+                  }
+                },
+                "required": ["email", "adult"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation completed"
+          },
+          "400": {
+            "description": "Invalid request or code"
+          },
+          "401": {
+            "description": "Sign in required"
+          },
+          "403": {
+            "description": "Request denied or fresh sign in required"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/api/auth/sign-in/email-otp": {
+      "post": {
+        "description": "Same-origin JSON only; exact Origin, same-origin Fetch Metadata when present and X-CheapSeggs-Action: account required. 4 KiB limit. Owner-scoped sessions; deletion requires authentication within five minutes. No bearer token in returned JSON.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CheapSeggs-Action",
+            "required": true,
+            "schema": {
+              "const": "account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  },
+                  "adult": {
+                    "const": true
+                  },
+                  "otp": {
+                    "type": "string",
+                    "pattern": "^[0-9]{8}$"
+                  },
+                  "recovery": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                },
+                "required": ["email", "adult", "otp"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation completed"
+          },
+          "400": {
+            "description": "Invalid request or code"
+          },
+          "401": {
+            "description": "Sign in required"
+          },
+          "403": {
+            "description": "Request denied or fresh sign in required"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/api/auth/sign-out": {
+      "post": {
+        "description": "Same-origin JSON only; exact Origin, same-origin Fetch Metadata when present and X-CheapSeggs-Action: account required. 4 KiB limit. Owner-scoped sessions; deletion requires authentication within five minutes. No bearer token in returned JSON.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CheapSeggs-Action",
+            "required": true,
+            "schema": {
+              "const": "account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {},
+                "required": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation completed"
+          },
+          "400": {
+            "description": "Invalid request or code"
+          },
+          "401": {
+            "description": "Sign in required"
+          },
+          "403": {
+            "description": "Request denied or fresh sign in required"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/api/account/delete": {
+      "post": {
+        "description": "Same-origin JSON only; exact Origin, same-origin Fetch Metadata when present and X-CheapSeggs-Action: account required. 4 KiB limit. Owner-scoped sessions; deletion requires authentication within five minutes. No bearer token in returned JSON.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CheapSeggs-Action",
+            "required": true,
+            "schema": {
+              "const": "account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "confirmation": {
+                    "const": "DELETE"
+                  }
+                },
+                "required": ["confirmation"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation completed"
+          },
+          "400": {
+            "description": "Invalid request or code"
+          },
+          "401": {
+            "description": "Sign in required"
+          },
+          "403": {
+            "description": "Request denied or fresh sign in required"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/api/account/adulthood": {
+      "post": {
+        "description": "Same-origin JSON only; exact Origin, same-origin Fetch Metadata when present and X-CheapSeggs-Action: account required. 4 KiB limit. Owner-scoped sessions; deletion requires authentication within five minutes. No bearer token in returned JSON.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CheapSeggs-Action",
+            "required": true,
+            "schema": {
+              "const": "account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "adult": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["adult"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation completed"
+          },
+          "400": {
+            "description": "Invalid request or code"
+          },
+          "401": {
+            "description": "Sign in required"
+          },
+          "403": {
+            "description": "Request denied or fresh sign in required"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/api/account/categories": {
+      "post": {
+        "description": "Same-origin JSON only; exact Origin, same-origin Fetch Metadata when present and X-CheapSeggs-Action: account required. 4 KiB limit. Owner-scoped sessions; deletion requires authentication within five minutes. No bearer token in returned JSON.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CheapSeggs-Action",
+            "required": true,
+            "schema": {
+              "const": "account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "category": {
+                    "enum": ["touch", "senses", "fantasy"]
+                  },
+                  "approved": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["category", "approved"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation completed"
+          },
+          "400": {
+            "description": "Invalid request or code"
+          },
+          "401": {
+            "description": "Sign in required"
+          },
+          "403": {
+            "description": "Request denied or fresh sign in required"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Service unavailable"
+          }
+        }
+      }
+    },
+    "/api/account/revoke": {
+      "post": {
+        "description": "Same-origin JSON only; exact Origin, same-origin Fetch Metadata when present and X-CheapSeggs-Action: account required. 4 KiB limit. Owner-scoped sessions; deletion requires authentication within five minutes. No bearer token in returned JSON.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CheapSeggs-Action",
+            "required": true,
+            "schema": {
+              "const": "account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "all": {
+                    "const": true
+                  }
+                },
+                "required": [],
+                "oneOf": [
+                  {
+                    "required": ["sessionId"],
+                    "not": {
+                      "required": ["all"]
+                    }
+                  },
+                  {
+                    "required": ["all"],
+                    "not": {
+                      "required": ["sessionId"]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation completed"
+          },
+          "400": {
+            "description": "Invalid request or code"
+          },
+          "401": {
+            "description": "Sign in required"
+          },
+          "403": {
+            "description": "Request denied or fresh sign in required"
+          },
+          "413": {
+            "description": "Body too large"
+          },
+          "429": {
+            "description": "Rate limited"
+          },
+          "503": {
+            "description": "Service unavailable"
           }
         }
       }

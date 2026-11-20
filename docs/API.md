@@ -1,5 +1,13 @@
 # JSON API contract proposal
 
+## M3A implemented account API (supersedes disabled-auth row above)
+
+GET `/api/account/status` exposes email/assurance/restricted-content availability without identity. GET `/api/account` returns only the current account's email, declaration state and own preview category approvals; GET `/api/account/sessions` returns owner-scoped opaque IDs/times, never bearer tokens. POST `/api/auth/email-otp/send-verification-otp` accepts `{email,adult:true}`; POST `/api/auth/sign-in/email-otp` accepts `{email,adult:true,otp,recovery?}`. Both require strict input, exact Origin, JSON and `X-CheapSeggs-Action: account`. Codes and session tokens never appear in returned JSON.
+
+POST `/api/auth/sign-out`, `/api/account/revoke` (`{sessionId}` or `{all:true}`), `/api/account/delete` (`{confirmation:"DELETE"}`, five-minute freshness), `/api/account/adulthood` (`{adult:boolean}`) and `/api/account/categories` (`{category,approved}` for the three existing non-explicit opt-in categories) are implemented. All are same-origin, bounded, no-store/noindex and owner-only. Age-verification paths return 503. All other framework operations remain inaccessible.
+
+GET `/api/v1/content/:id/:version` checks authoritative publication/access/category/entitlement state and returns generic 404 for forbidden or restricted content; it never exposes protected titles/metadata. No adult activity approval endpoint exists because restricted content remains closed. See AUTH.md and AGE_ASSURANCE.md.
+
 Choose **REST with OpenAPI 3.1**, same-origin JSON, versioned domain routes under `/api/v1`. REST makes security/resource ownership review and future embedded clients easier than a framework-bound RPC graph. Typed RPC would reduce some client boilerplate but couples transport/types and does not eliminate validation or authorization. Use Zod runtime validation plus generated OpenAPI when the first real mutation is implemented; the foundation has a small checked-in [OpenAPI contract](openapi.json) for implemented routes only. Do not publish speculative endpoints as functioning services.
 
 ## Implemented now

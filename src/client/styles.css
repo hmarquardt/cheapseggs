@@ -1133,3 +1133,34 @@ h3 {
     opacity: 1;
   }
 }
+
+.account-page {
+  max-width: 52rem;
+  padding-block: 2rem 4rem;
+}
+.account-page .entry-card {
+  margin-block: 2rem;
+  text-align: left;
+}
+.account-page label {
+  display: block;
+  margin-block: 1rem;
+}
+.account-page input:not([type="checkbox"]) {
+  display: block;
+  width: 100%;
+  max-width: 30rem;
+  padding: 0.7rem;
+  margin-block: 0.4rem;
+  border: 2px solid currentColor;
+  border-radius: 0.3rem;
+  color: #240d19;
+  background: #fff8ee;
+  font: inherit;
+}
+.account-page button {
+  margin-block: 0.4rem;
+}
+.account-page li {
+  margin-block: 0.8rem;
+}

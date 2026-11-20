@@ -206,6 +206,16 @@ function Lounge() {
         <a class="wordmark" href="/">
           cheap<span>seggs</span>
         </a>
+        <a
+          href="/account/"
+          onClick={async (event) => {
+            event.preventDefault();
+            await clearSession();
+            window.location.assign("/account/");
+          }}
+        >
+          Account (clears guest session)
+        </a>
         <a href="/privacy/">Privacy & discretion</a>
       </header>
       <main class="wrap lounge" id="main">

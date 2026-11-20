@@ -178,7 +178,7 @@ export async function loadWheelCatalog(
        JOIN activity_versions av
          ON av.activity_id = ws.activity_id AND av.version = ws.activity_version
        JOIN categories c ON c.id = av.category_id
-       WHERE ws.wheel_id = ? AND ws.wheel_version = ?
+       WHERE ws.wheel_id = ? AND ws.wheel_version = ? AND av.access_tier = 'public_preview'
        ORDER BY ws.activity_id`,
     )
     .bind(wheel.id, wheel.version)

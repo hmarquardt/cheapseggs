@@ -59,7 +59,11 @@ class TestStatement {
 
   async all<T = Record<string, unknown>>() {
     const results = this.raw.prepare(this.sql).all(...this.params) as T[];
-    return { success: true as const, meta: meta(0), results };
+    return {
+      success: true as const,
+      meta: meta(Number((this.raw.prepare("SELECT changes() AS n").get() as { n: number }).n)),
+      results,
+    };
   }
 
   async run<T = Record<string, unknown>>() {
@@ -81,8 +85,15 @@ class TestD1 {
 
   async batch<T = Record<string, unknown>>(statements: TestStatement[]) {
     const results = [];
-    for (const statement of statements) results.push(await statement.all<T>());
-    return results;
+    this.raw.exec("BEGIN");
+    try {
+      for (const statement of statements) results.push(await statement.all<T>());
+      this.raw.exec("COMMIT");
+      return results;
+    } catch (error) {
+      this.raw.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   async exec(sql: string) {

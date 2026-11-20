@@ -3,6 +3,7 @@
   "name": "cheapseggs-foundation-local",
   "main": "src/server/index.ts",
   "compatibility_date": "2026-11-19",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
   "assets": {

@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { PUBLIC_PATHS, SITE_JSON_LD_HASH, SITE_ORIGIN } from "../config/site";
 import { requestDigestKeyed } from "../services/wheel";
+import { accountRoutes } from "./account";
 import type { Bindings } from "./bindings";
+import { contentRoutes } from "./content";
 import { wheelRoutes } from "./wheel";
 
 export const app = new Hono<{ Bindings: Bindings }>();
@@ -113,16 +115,23 @@ app.get("/api/v1/catalog/preview", async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT activity_id AS id, version, title, description, duration_minutes AS durationMinutes
      FROM activity_versions
-     WHERE public_preview = 1 AND status = 'published' AND pack_id IS NULL
+     WHERE public_preview = 1 AND access_tier = 'public_preview' AND status = 'published' AND pack_id IS NULL
      ORDER BY activity_id LIMIT 12`,
   ).all();
   return c.json({ items: results, catalogVersion: "sample-1" });
 });
+app.route("/", accountRoutes);
+app.route("/api/v1", contentRoutes);
 app.all("/api/auth/*", (c) => c.json({ error: "auth_not_configured" }, 503));
 app.all("/api/payments/*", (c) => c.json({ error: "payments_not_configured" }, 503));
 app.route("/api/v1", wheelRoutes);
 app.get("*", async (c) => {
   const pathname = new URL(c.req.url).pathname;
+  if (pathname === "/account" || pathname === "/account/") {
+    if (!c.env?.ASSETS) return c.json({ error: "not_found" }, 404);
+    const asset = await c.env.ASSETS.fetch(c.req.raw);
+    return new Response(asset.body, asset);
+  }
   if (
     pathname.startsWith("/api/") ||
     /^\/(account|auth|invite|assessments|results)(\/|$)/.test(pathname)

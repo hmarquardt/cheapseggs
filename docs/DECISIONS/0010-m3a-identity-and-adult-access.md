@@ -1,0 +1,9 @@
+# ADR 0010 — M3A independent identity and closed adult-content gates
+
+Accepted 2026-11-20. Supersedes the unimplemented/provisional auth status in ADR 0002 and the local-only scope of ADR 0004 for this explicit assignment. Its privacy, market and content-review gates remain binding.
+
+Decision: pin Better Auth 1.7.27 with its native D1 adapter; generate framework tables from the actual config; use eight-digit email OTP and server-side sessions. Integrate Cloudflare Email Sending with the founder-authorized cheapseggs.com domain and fixed accounts sender. Explicit self-declaration is distinct from inbox ownership and future independent assurance. Keep a separate publication access tier defaulting to restricted; grandfather only the exact reviewed non-explicit catalog versions. Model category, activity and commercial checks independently of heat. No paid age provider, document collection or restricted content is activated.
+
+Tradeoffs: passwordless email depends on inbox security and delivery, and the sender/domain name is visible. Passkeys and email changes need a later reviewed flow. Cloudflare's sending service is beta and has shared account quotas; application limits bound abuse and volume. D1 has no interactive transactions: atomic OTP consumption comes from the patched adapter; triggers tie domain creation/deletion to identity writes. No custom authentication, browser bearer tokens, cookie authorization cache, relationship linking or guest preference import.
+
+Consequences: a production account may be a self-declared adult without being age-verified. Restricted content stays closed in every market until counsel, provider and content gates pass. Tests cover the actual workerd/D1 integration and account lifecycle; no live inbox delivery is claimed based on a mock transport. See AUTH.md, AGE_ASSURANCE.md and LAUNCH_REPORT.md for runtime behavior, vendor research and release evidence.

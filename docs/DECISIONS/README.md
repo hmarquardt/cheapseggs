@@ -17,4 +17,6 @@ Public production extension: [ADR 0006](0006-public-production-launch.md) record
 | [0008](0008-m2-1-fingerprint-and-rate-limits.md) | Accepted; decision 2 superseded by 0009         | HMAC-keyed spin fingerprints and Cloudflare-native rate limits on the public guest endpoints                           |
 | [0009](0009-mandatory-fingerprint-key.md)        | Accepted and implemented (M2.1)                 | The fingerprint key is mandatory: no unkeyed mode exists and spins fail closed with a fixed 503 without a valid key    |
 
+[ADR 0010](0010-m3a-identity-and-adult-access.md) accepts the M3A implementation: Better Auth 1.7.27 native D1, Cloudflare email, independent adult declarations, closed restricted-content gates and explicit publication tiers.
+
 Change a material choice through a new ADR and update the affected docs. Record tradeoffs and evidence, not just a package name. Use explicit “supersedes” links rather than silently rewriting history after implementation.

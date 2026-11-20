@@ -32,7 +32,12 @@ assert.deepEqual(production.routes, [
   { pattern: "cheapseggs.com", custom_domain: true },
   { pattern: "www.cheapseggs.com", custom_domain: true },
 ]);
-assert.deepEqual(Object.keys(production.vars).sort(), ["APP_ENV", "DEPLOY_REVISION"]);
+assert.deepEqual(Object.keys(production.vars).sort(), [
+  "APP_ENV",
+  "AUTH_EMAIL_ENABLED",
+  "AUTH_EMAIL_FROM",
+  "DEPLOY_REVISION",
+]);
 assert.match(ANALYTICS_SITE_ID, /^as_[A-Za-z0-9]{22}$/);
 assert.equal(
   SITE_JSON_LD_HASH,
@@ -83,3 +88,12 @@ assert.equal(
 console.log(
   "Production/local separation, target bindings, routes, privacy defaults, CSP and social images validated.",
 );
+
+assert.deepEqual(production.send_email, [
+  { name: "ACCOUNT_EMAIL", allowed_sender_addresses: ["accounts@cheapseggs.com"] },
+]);
+assert.equal(production.vars.AUTH_EMAIL_FROM, "accounts@cheapseggs.com");
+assert.equal(production.vars.AUTH_EMAIL_ENABLED, "true");
+assert.equal(production.vars.BETTER_AUTH_SECRET, undefined);
+assert.equal(local.send_email, undefined, "local development must never send real email");
+assert.deepEqual(production.compatibility_flags, ["nodejs_compat"]);

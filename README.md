@@ -2,7 +2,7 @@
 
 **Cheap Seggs. Priceless Memories.** Playful discovery for consenting adults, with boundaries built into the product.
 
-This repository contains the researched product architecture and **safe public preview**. GitHub [hmarquardt/cheapseggs](https://github.com/hmarquardt/cheapseggs), branch `main`, is canonical. Live production: **https://cheapseggs.com**. The public explanations and the first playable **Wheel of Misfortune** (guest Discovery Mode) are implemented; authentication, private answers, assessments, partner matching, recipes, email delivery and payments remain disabled. [Deployment](docs/DEPLOYMENT.md) records resources, release gates and verification requirements; [launch report](docs/LAUNCH_REPORT.md) records actual deployment status.
+This repository contains the researched product architecture and **safe public preview**. GitHub [hmarquardt/cheapseggs](https://github.com/hmarquardt/cheapseggs), branch `main`, is canonical. Live production: **https://cheapseggs.com**. The public explanations and the first playable **Wheel of Misfortune** (guest Discovery Mode) are implemented; M3A adds independent email-code accounts, recovery, revocable sessions and account deletion. Cloudflare provides account email delivery. Independent age assurance, restricted content, private answers, assessments, partner matching, recipes and payments remain disabled. [Deployment](docs/DEPLOYMENT.md) records resources, release gates and verification requirements; [launch report](docs/LAUNCH_REPORT.md) records actual deployment status.
 
 Start with the concise [decision report](docs/DECISION_REPORT.md), then use the documentation index below.
 
@@ -30,11 +30,15 @@ npm run test:e2e     # local Worker, desktop + mobile, accessibility and API smo
 
 `npm run build` invokes **`wrangler deploy --dry-run`** to compile only. `wrangler.jsonc` remains local; `wrangler.production.jsonc` is the explicit production target. `npm run deploy` is guarded for validated GitHub Actions `main` releases; it requires the deployment secret and publishes the tagged commit. Do not remove `--dry-run` from a build command to improvise a release. See the deployment runbook for the documented initial bootstrap exception.
 
+## M3A accounts and adult access
+
+`/account/` implements registration/sign-in through Better Auth 1.7.27 email OTP, self-declared adulthood, optional non-explicit category approvals, recovery, session revocation and deletion. No real identity documents or private partner data are collected. [Authentication](docs/AUTH.md) describes the controls; [Adult access](docs/AGE_ASSURANCE.md) records market/provider gates, costs and exact blockers. Heat cannot unlock restricted categories.
+
 ## What exists
 
 - Nine substantive public landing, feature-explanation and policy pages, with initial-HTML canonical/Open Graph/X metadata, original social artwork, sitemap and robots.
 - The lounge at `/play/` is a working guest Discovery wheel: 44-entry versioned non-explicit catalog, server-side eligibility and crypto-random selection, an 8-wedge retro-casino wheel with a readable list alternative, reduced-motion/instant results, optional muted sound and a 24h guest session that stores no boundaries. The in-memory adults-only acknowledgement is **not** age verification. See [Wheel](docs/WHEEL.md).
-- Hono API: liveness, D1 readiness, release/Worker version identity, three deliberately public non-explicit sample records, the published wheel configuration, the idempotent `POST /api/v1/spins` guest spin and an explicit guest reset; auth/payment namespaces return 503 and other unimplemented APIs return 404. Worker-first handling applies security headers, canonical redirects and private noindex/no-store boundaries.
+- Hono API: liveness, D1 readiness, release/Worker version identity, three deliberately public non-explicit sample records, the published wheel configuration, the idempotent `POST /api/v1/spins` guest spin and an explicit guest reset; reviewed auth/account routes are implemented; payment namespaces return 503 and other unimplemented APIs return 404. Worker-first handling applies security headers, canonical redirects and private noindex/no-store boundaries.
 - Zod catalog model, pure eligibility policy, rejection-sampled weighted selection with a readable shortlist, and a processor-independent entitlement service boundary. Eligibility and selection are wired into the Discovery wheel; mutual/shared modes are not built.
 - Local D1 migrations: catalog, relationship/privacy scaffolding, encrypted-payload storage boundaries, commerce/entitlement records and the M2 guest wheel tables; idempotent, generated catalog seed.
 - Consent-based minimal CFLab adapter with no private paths/answers, no session identifier, no raw URL/referrer/campaign values and DNT/GPC support. Future product-event names exist without fake event emission.
@@ -82,4 +86,4 @@ docs/            product, commercial research, architecture, ADRs
 
 ## Before a launch
 
-Read [Roadmap](docs/ROADMAP.md). The public release does not complete authentication or private product features. The next product milestone is the real discovery wheel with the applicable adult-access review. Private partner data requires the identity/privacy/deletion release gate; purchases require explicit processor suitability and approval. Intended sensitive-feature markets, merchant entity, tax treatment and final private-service legal documents remain decisions. Do not submit merchant applications or contact anyone on the user's behalf without instructions.
+Read [Roadmap](docs/ROADMAP.md). The account foundation is implemented; it does not open private product features or verified-adult content. The next product milestone is the real discovery wheel with the applicable adult-access review. Private partner data requires the identity/privacy/deletion release gate; purchases require explicit processor suitability and approval. Intended sensitive-feature markets, merchant entity, tax treatment and final private-service legal documents remain decisions. Do not submit merchant applications or contact anyone on the user's behalf without instructions.

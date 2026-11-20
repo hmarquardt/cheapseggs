@@ -13,7 +13,7 @@ describe("foundation API boundary", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
   });
-  it("fails closed for authentication and billing", async () => {
+  it("fails closed for unconfigured authentication and billing", async () => {
     expect((await app.request("/api/auth/sign-in", { method: "POST" })).status).toBe(503);
     expect((await app.request("/api/payments/webhook", { method: "POST" })).status).toBe(503);
     expect((await app.request("/api/v1/couples/other/preferences")).status).toBe(404);

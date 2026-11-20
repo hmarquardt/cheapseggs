@@ -1,5 +1,9 @@
 # Application architecture
 
+## M3A implementation update
+
+The same modular Worker now mounts a reviewed account/auth router alongside the guest wheel. Better Auth 1.7.27 uses its native D1 adapter; the proposed Drizzle layer is unnecessary. Cloudflare Email Sending provides the fixed accounts sender through a restricted native binding. Auth schema generation and compiled workerd/D1 checks are part of npm run check. [AUTH.md](AUTH.md) and [ADR 0010](DECISIONS/0010-m3a-identity-and-adult-access.md) supersede earlier disabled-auth statements. Independent access tiers default closed; no private matching, age-provider dependency or extra deployed Worker was added.
+
 Status: accepted foundation stack; production auth, age assurance and commerce integrations remain gated. Sources checked 2026-11-19.
 
 **M2 update, 2026-11-20:** the first playable Wheel of Misfortune (guest Discovery Mode) is

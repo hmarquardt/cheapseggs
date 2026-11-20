@@ -9,6 +9,7 @@ import {
   type DiscoveryEntry,
   MAX_PUBLISHED_HEAT,
 } from "../src/content/discovery/catalog.ts";
+import { PUBLIC_ACTIVITY_VERSIONS } from "../src/content/discovery/public-access.ts";
 import { type Activity, activitySchema } from "../src/domain/catalog.ts";
 
 /**
@@ -173,7 +174,7 @@ ON CONFLICT(id) DO UPDATE SET title = excluded.title, required_opt_in = excluded
     "INSERT OR IGNORE INTO activities(id) VALUES",
     `${DISCOVERY_ENTRIES.map((entry) => `  (${sql(entry.id)})`).join(",\n")};`,
     "",
-    "INSERT OR IGNORE INTO activity_versions(activity_id,version,title,description,category_id,heat,experimentation,energy,duration_minutes,metadata_json,status,pack_id,public_preview) VALUES",
+    "INSERT OR IGNORE INTO activity_versions(activity_id,version,title,description,category_id,heat,experimentation,energy,duration_minutes,metadata_json,status,pack_id,public_preview,access_tier) VALUES",
   );
   lines.push(
     `${DISCOVERY_ENTRIES.map((entry) => {
@@ -202,6 +203,13 @@ ON CONFLICT(id) DO UPDATE SET title = excluded.title, required_opt_in = excluded
         sql(entry.status),
         "NULL",
         entry.publicPreview ? 1 : 0,
+        sql(
+          PUBLIC_ACTIVITY_VERSIONS.some(
+            ([id, version]) => id === entry.id && version === entry.version,
+          )
+            ? "public_preview"
+            : "restricted",
+        ),
       ].join(",")})`;
     }).join(",\n")};`,
     "",

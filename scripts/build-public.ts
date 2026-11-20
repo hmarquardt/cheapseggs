@@ -28,7 +28,7 @@ const navigation = PUBLIC_PAGES.filter((page) => page.path !== "/")
   )
   .join("");
 const choice = `<section class="wrap analytics-choice" aria-label="Analytics preferences"><p data-analytics-status>Optional analytics: off. JavaScript is required to opt in.</p><button type="button" data-analytics-allow>Allow analytics</button><button type="button" data-analytics-reject>Keep analytics off</button><a href="/privacy/">How it works</a></section>`;
-const footer = `<footer class="wrap site-footer"><a class="wordmark" href="/">cheap<span>seggs</span></a><p>Early public preview. Games, accounts and purchases are in development.</p><a href="/privacy/">Privacy &amp; discretion</a></footer>${choice}`;
+const footer = `<footer class="wrap site-footer"><a class="wordmark" href="/">cheap<span>seggs</span></a><p>Early public preview. The guest wheel is live. Account availability is shown on the account page. Purchases are in development.</p><a href="/account/">Your account</a><a href="/privacy/">Privacy &amp; discretion</a></footer>${choice}`;
 
 for (const page of PUBLIC_PAGES) {
   const canonical = `${SITE_ORIGIN}${page.path}`;

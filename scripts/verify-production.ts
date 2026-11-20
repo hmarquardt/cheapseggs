@@ -165,19 +165,61 @@ for (const path of [...home.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(
 }
 for (const path of [
   "/play/",
+  "/account/",
   "/invite/private-token",
   "/assessments/private-id",
   "/api/v1/couples/private/preferences",
   "/missing-page",
 ]) {
   const response = await get(path);
-  assert.equal(response.status, path === "/play/" ? 200 : 404, path);
+  assert.equal(response.status, ["/play/", "/account/"].includes(path) ? 200 : 404, path);
   assert.ok(response.headers.get("x-robots-tag")?.includes("noindex"), path);
   if (path !== "/missing-page")
     assert.equal(response.headers.get("cache-control"), "no-store", path);
 }
-assert.equal((await get("/api/auth/sign-in", { method: "POST" })).status, 503);
+assert.equal((await get("/api/auth/sign-in", { method: "POST" })).status, 403);
 assert.equal((await get("/api/payments/webhook", { method: "POST" })).status, 503);
+const accountStatus = await (await get("/api/account/status")).json();
+assert.deepEqual(accountStatus, {
+  emailSignInAvailable: true,
+  ageVerificationAvailable: false,
+  restrictedContentAvailable: false,
+});
+assert.equal((await get("/api/account")).status, 401);
+assert.equal(
+  (
+    await get("/api/auth/email-otp/send-verification-otp", {
+      method: "POST",
+      headers: {
+        origin: SITE_ORIGIN,
+        "content-type": "application/json",
+        "x-cheapseggs-action": "account",
+      },
+      body: JSON.stringify({ email: "release-check@example.invalid", adult: false }),
+    })
+  ).status,
+  400,
+);
+assert.equal(
+  (
+    await get("/api/account/age-verification/start", {
+      method: "POST",
+      headers: {
+        origin: SITE_ORIGIN,
+        "content-type": "application/json",
+        "x-cheapseggs-action": "account",
+      },
+      body: "{}",
+    })
+  ).status,
+  503,
+);
+assert.equal((await get("/api/v1/content/draft-blindfold-trust/1")).status, 404);
+evidence.push({
+  check:
+    "account UX, available email registration with required adulthood, no unauthenticated account access, closed age/restricted content",
+  result: "pass",
+});
 const sitemap = await (await get("/sitemap.xml")).text();
 assert.equal((sitemap.match(/<loc>/g) ?? []).length, PUBLIC_PATHS.length);
 assert.ok(!(sitemap.includes("/play/") || sitemap.includes("/api/")));

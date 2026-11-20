@@ -106,3 +106,15 @@ Migrations are append-only. Test locally first, review against the deployed sche
 No new subscription, paid third-party service, AI model, email transport or R2 bucket was enabled. The new Worker/D1 use the existing account's allowances and usage billing; requests, CPU and storage can incur overage as traffic grows. Worker-first handling means public requests invoke the Worker. Public GitHub Linux Actions use the existing account's applicable allowance. CFLab uses its existing shared infrastructure. See COSTS.md for estimates, not a promise of zero billing.
 
 The live launch report must distinguish: deployed public functionality, GitHub validation/deployment state, actual Worker version/SHA, independent smoke evidence, real CFLab ingestion/report readback and Search Console verification/submission blockers. Never publish credentials to close a reporting gap.
+
+## M3A account deployment and email (2026-11-20)
+
+The founder explicitly requested Cloudflare email on cheapseggs.com. Email Sending was enabled through Wrangler; SPF on cf-bounce, DKIM on cf-bounce._domainkey and apex DMARC were confirmed in public DNS. No apex MX/routing replacement or external email subscription was needed. Production config binds ACCOUNT_EMAIL with allowed_sender_addresses=[accounts@cheapseggs.com], AUTH_EMAIL_ENABLED=true and the fixed sender; local config deliberately has no real mail binding. No outbound provider API key is needed.
+
+Provision BETTER_AUTH_SECRET as a 32+ byte high-entropy Worker secret, never a config variable. It is separate from SPIN_DIGEST_KEY. Set once via a secure stdin pipe after committing/pushing the authorized source; it survives future releases. No secret values enter artifacts. Changing it can invalidate sessions/challenges; plan revocation and a reviewed rotation before replacing it.
+
+Cloudflare's existing Workers Paid plan includes 3,000 account-wide emails/month; published overage is $0.35/1,000. M3A enforces 100/day and 1,000/calendar month application caps, counting failures conservatively. The provider's quota is shared and billing-cycle aligned, so this is not a zero-cost guarantee. The approved existing usage model remains; no new subscription or age-provider charges were opened.
+
+Normal CI adds pinned auth-schema drift and compiled workerd/D1 lifecycle checks. Production applies additive 0003/0004 then releases the exact pushed SHA and smoke-checks the account page/status, unauthenticated refusal, missing adulthood refusal, age-provider closure and existing wheel/security assertions. A separate authorized inbox check may establish provider acceptance; do not equate acceptance with delivered/read mail.
+
+Before any D1 restore: export the current account_deletions ledger outside the restore target, restore into an isolated database, replay deletions against auth_user/users, delete every restored session/challenge, and review before routing traffic. If current deletion state cannot be recovered, remain offline. No restore is performed as part of M3A.

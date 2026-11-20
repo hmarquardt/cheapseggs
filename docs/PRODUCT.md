@@ -1,5 +1,9 @@
 # Product strategy
 
+## Founder priority revision — M3A (2026-11-20)
+
+The product direction includes playful, sensual and kink-oriented adult entertainment. M3A establishes independent accounts, adulthood declarations and explicit server content tiers to support that direction. It supersedes the historical no-registration scope above. Only the existing non-explicit guest catalog is open. Account verification proves inbox ownership; restricted content requires the separate legal, age-provider, content-review and privacy gates in [AGE_ASSURANCE.md](AGE_ASSURANCE.md). Heat, category curiosity, payment and compatibility never constitute activity consent. No Chemistry Check, payments or private couple sharing is implemented here.
+
 Status: proposed product, foundation implemented. Research checked 2026-11-19. Numerical targets below are validation hypotheses, not observed behavior.
 
 **2026-11-20 public launch scope:** the user authorized deployment of the safe public foundation, and M2 later released the first playable guest Discovery wheel. Implemented public pages explain the live Wheel plus the planned Date Night Machine, Chemistry Check, Secret Menu and Cookbook, with about/privacy/preview terms, complete social metadata and a non-explicit lounge. The wheel serves a reviewed-editorial, non-graphic 44-entry catalog and states continuously that a spin is a prompt, never approval. No registration, real assessment/invitation, stored private answer, generated recipe or checkout is enabled. Optional public-page analytics covers public pages only; `/play/` emits nothing, so spins and boundaries are never measured. [Launch report](LAUNCH_REPORT.md) separates implemented, deployed and independently verified results.

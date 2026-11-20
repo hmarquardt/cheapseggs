@@ -8,6 +8,7 @@ export default defineConfig({
       input: {
         home: resolve("index.html"),
         play: resolve("play/index.html"),
+        account: resolve("account/index.html"),
         privacy: resolve("privacy/index.html"),
       },
     },

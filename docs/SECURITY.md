@@ -1,5 +1,9 @@
 # Security, abuse and compliance review
 
+## M3A status (supersedes historical disabled-identity statements above)
+
+Better Auth 1.7.27 email OTP, native D1 sessions and Cloudflare account email are implemented. Current threats/controls, exact lifetimes, advisory review, CSRF policy, abuse budgets and deletion/restore restrictions are in [AUTH.md](AUTH.md). New catalog versions default to restricted and are excluded from every guest read; only the frozen reviewed M2 manifest is public. No age provider or restricted-content market is enabled; see [AGE_ASSURANCE.md](AGE_ASSURANCE.md). No document, intimate response, private activity approval/history, couple sharing or billing data is collected by M3A. No E2EE claim.
+
 Threat model date: 2026-11-19. This is a design review and release checklist, not a security certification. The foundation stores only non-explicit fixtures. Private-data, billing and identity APIs remain disabled.
 
 **Public release extension, 2026-11-20:** deployment is now authorized for the non-explicit public foundation. Production has no functioning identity/session system and sets no authentication cookies; unfinished auth/payments return 503 and private assessment/couple paths return generic 404/no-store/noindex. Only three reviewed non-explicit samples are seeded, with no user/test account or private-response data. `wrangler.production.jsonc` separates bindings from local emulation and disables request logging. Social metadata and WebSite JSON-LD are static, with exact hash-based CSP permission rather than unsafe-inline. Optional CFLab fetches are consented and public-path allowlisted; raw URL/referrer/answer/session identifiers are excluded. Real private/erotic functionality still requires all existing gates. [Deployment](DEPLOYMENT.md) and [Analytics](ANALYTICS.md) document boundaries and actual evidence.

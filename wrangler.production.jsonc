@@ -4,11 +4,18 @@
   "account_id": "b1aa310aa0a1638d72b8b086a21e557c",
   "main": "src/server/index.ts",
   "compatibility_date": "2026-11-19",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
   "routes": [
-    { "pattern": "cheapseggs.com", "custom_domain": true },
-    { "pattern": "www.cheapseggs.com", "custom_domain": true }
+    {
+      "pattern": "cheapseggs.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.cheapseggs.com",
+      "custom_domain": true
+    }
   ],
   "assets": {
     "directory": "./dist/client",
@@ -28,15 +35,36 @@
     {
       "name": "SPIN_RATE_LIMITER",
       "namespace_id": "202611201",
-      "simple": { "limit": 40, "period": 60 }
+      "simple": {
+        "limit": 40,
+        "period": 60
+      }
     },
     {
       "name": "WHEEL_RATE_LIMITER",
       "namespace_id": "202611202",
-      "simple": { "limit": 120, "period": 60 }
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
     }
   ],
-  "vars": { "APP_ENV": "production", "DEPLOY_REVISION": "unset" },
-  "version_metadata": { "binding": "WORKER_VERSION" },
-  "observability": { "enabled": false }
+  "vars": {
+    "APP_ENV": "production",
+    "DEPLOY_REVISION": "unset",
+    "AUTH_EMAIL_ENABLED": "true",
+    "AUTH_EMAIL_FROM": "accounts@cheapseggs.com"
+  },
+  "version_metadata": {
+    "binding": "WORKER_VERSION"
+  },
+  "observability": {
+    "enabled": false
+  },
+  "send_email": [
+    {
+      "name": "ACCOUNT_EMAIL",
+      "allowed_sender_addresses": ["accounts@cheapseggs.com"]
+    }
+  ]
 }
