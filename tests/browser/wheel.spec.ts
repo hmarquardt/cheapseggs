@@ -63,19 +63,22 @@ test("the result is a prompt: hide it, undo it, and keep no browsing state", asy
 });
 
 test("keyboard users can change limits and spin without a pointer", async ({ page }) => {
-  // Longer menus and a taller mobile page make this the slowest keyboard path in CI.
+  // Pure keyboard interaction: focus each control and use the native key handling, so the
+  // check never depends on pointer hit-testing a visually hidden input on mobile.
   test.slow();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await enterLounge(page);
   const medium = page.getByRole("radio", { name: "Medium" });
-  await medium.scrollIntoViewIfNeeded();
-  await medium.check();
-  const senses = page.locator("label.chip", { hasText: "Senses" }).first();
-  await senses.scrollIntoViewIfNeeded();
-  await senses.click();
-  await expect(senses.locator("input")).toBeChecked();
+  await medium.focus();
+  await page.keyboard.press("Space");
+  await expect(medium).toBeChecked();
+
+  const senses = page.locator("label.chip", { hasText: "Senses" }).first().locator("input");
+  await senses.focus();
+  await page.keyboard.press("Space");
+  await expect(senses).toBeChecked();
+
   const spinButton = page.getByRole("button", { name: /Spin the wheel/ });
-  await spinButton.scrollIntoViewIfNeeded();
   await spinButton.focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("#result-title")).toBeVisible({ timeout: 8000 });
