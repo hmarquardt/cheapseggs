@@ -10,3 +10,4 @@ playwright-report/
 *.sqlite*
 *.log
 .DS_Store
+artifacts/

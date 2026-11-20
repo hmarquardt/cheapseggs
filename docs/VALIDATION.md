@@ -1,4 +1,12 @@
-# Foundation validation evidence
+# Validation evidence
+
+## Public-release update (2026-11-20)
+
+The original evidence below is historical. Foundation commit `984952e34e073690f29350efdaf373059addbdd3` is pushed to main and passed [GitHub validation](https://github.com/hmarquardt/cheapseggs/actions/runs/44755167323) on Node 24/Linux. The production release adds config/PNG checks, 37 unit/API tests and 8 desktop/mobile browser tests, including all nine public pages across four crawler user agents and consent/privacy/duplicate-pageview boundaries. Final release results and live deployment evidence are in [Launch report](LAUNCH_REPORT.md).
+
+No private workflow, predictive compatibility algorithm, authentication implementation or payment integration is certified by the public release.
+
+## Original foundation evidence
 
 Executed locally 2026-11-19 (America/Chicago) on macOS arm64, Node 26.13.0 / npm 11.20.0. Repository recommends Node 24 LTS, minimum 24.15; CI definition uses `.nvmrc`. CI has **not** run on GitHub because no changes were pushed. Node 24/Linux remains a CI verification boundary, not a claimed local result.
 

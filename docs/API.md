@@ -13,7 +13,7 @@ Choose **REST with OpenAPI 3.1**, same-origin JSON, versioned domain routes unde
 | /api/payments/*             | 503 payments_not_configured                                                                    |
 | Other API routes            | 404 not_found; no private CRUD implementation                                                  |
 
-All API responses are no-store/noindex. Samples are intentionally safe public previews; the real adult catalog must require the market/assurance policy before delivery. Health is not readiness. No D1 query text or internal failure objects returned.
+`GET /api/version` additionally exposes the non-secret Git commit, Worker version and environment for release verification. All API responses are no-store/noindex. Samples are intentionally safe public previews; the real adult catalog must require the market/assurance policy before delivery. Health is not readiness. No D1 query text or internal failure objects returned.
 
 ## Proposed route surface by release
 

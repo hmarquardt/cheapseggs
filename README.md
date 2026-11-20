@@ -2,7 +2,7 @@
 
 **Cheap Seggs. Priceless Memories.** Playful discovery for consenting adults, with boundaries built into the product.
 
-This repository is a researched product architecture and **local-only foundation**, not a production application. No live resources, production deployment, authentication provider, email delivery, or payment processor have been enabled. The GitHub repository is [hmarquardt/cheapseggs](https://github.com/hmarquardt/cheapseggs); intended production domain: `cheapseggs.com`.
+This repository contains the researched product architecture and **safe public preview**. GitHub [hmarquardt/cheapseggs](https://github.com/hmarquardt/cheapseggs), branch `main`, is canonical. Production target: **https://cheapseggs.com**. Public explanations and the non-explicit lounge preview are implemented; authentication, private answers, assessments, games, email delivery and payments remain disabled. [Deployment](docs/DEPLOYMENT.md) records resources, release gates and verification requirements; [launch report](docs/LAUNCH_REPORT.md) records actual deployment status.
 
 Start with the concise [decision report](docs/DECISION_REPORT.md), then use the documentation index below.
 
@@ -27,15 +27,16 @@ npx playwright install chromium
 npm run test:e2e     # local Worker, desktop + mobile, accessibility and API smoke checks
 ```
 
-`npm run build` invokes **`wrangler deploy --dry-run`** to compile only. There is deliberately no deploy script, live database ID, R2 binding, route, scheduled job, or production configuration. Do not remove `--dry-run` to publish this foundation.
+`npm run build` invokes **`wrangler deploy --dry-run`** to compile only. `wrangler.jsonc` remains local; `wrangler.production.jsonc` is the explicit production target. `npm run deploy` is guarded for validated GitHub Actions `main` releases; it requires the deployment secret and publishes the tagged commit. Do not remove `--dry-run` from a build command to improvise a release. See the deployment runbook for the documented initial bootstrap exception.
 
 ## What exists
 
-- Static public landing/privacy pages and a small Preact lounge preview with an in-memory adults-only acknowledgement and mode explanations. The acknowledgement is **not age verification**. No playable wheel yet.
-- Hono API: liveness, D1 readiness, and three deliberately public non-explicit sample catalog records; auth/payment namespaces return 503 and other unimplemented APIs return 404.
+- Nine substantive public landing, feature-explanation and policy pages, with initial-HTML canonical/Open Graph/X metadata, original social artwork, sitemap and robots. The small Preact lounge has an in-memory adults-only acknowledgement and mode explanations; the acknowledgement is **not age verification**. No playable wheel yet.
+- Hono API: liveness, D1 readiness, release/Worker version identity and three deliberately public non-explicit sample catalog records; auth/payment namespaces return 503 and other unimplemented APIs return 404. Worker-first handling applies security headers, canonical redirects and private noindex/no-store boundaries.
 - Zod catalog model, pure eligibility policy, rejection-sampled selection primitive, and a processor-independent entitlement service boundary. These are not wired into shared games.
 - Local D1 migration: catalog, relationship/privacy scaffolding, encrypted-payload storage boundaries, commerce/entitlement records; idempotent sample seed.
-- CI validation without deployment or credentials. Read [validation evidence](docs/VALIDATION.md) for what actually ran.
+- Consent-based minimal CFLab adapter with no private paths/answers, no session identifier, no raw URL/referrer/campaign values and DNT/GPC support. Future product-event names exist without fake event emission.
+- GitHub Actions validation → guarded deployment → independent production smoke tests. A durable repository credential is required; missing external authorization is documented rather than replaced with a short-lived token. Read [validation evidence](docs/VALIDATION.md) and the launch report for actual results.
 
 ## Read the decisions
 
@@ -53,6 +54,9 @@ npm run test:e2e     # local Worker, desktop + mobile, accessibility and API smo
 | [Monetization](docs/MONETIZATION.md)       | Competitors, ranked experiments, metrics, couple ownership                                |
 | [Payments](docs/PAYMENTS.md)               | Provider evidence, restrictions, underwriting checklist                                   |
 | [SEO](docs/SEO.md)                         | Acquisition, content IA, previews, search restrictions                                    |
+| [Analytics](docs/ANALYTICS.md)             | Actual CFLab contract, site registration, permission and minimization                     |
+| [Deployment](docs/DEPLOYMENT.md)           | Production resources, GitHub release path, rollback and external prerequisites            |
+| [Launch report](docs/LAUNCH_REPORT.md)     | Actual SHA/version, live checks and unresolved integration state                          |
 | [Costs](docs/COSTS.md)                     | Current price sources, scenarios, unit economics                                          |
 | [Roadmap](docs/ROADMAP.md)                 | Dependency-aware milestones and acceptance criteria                                       |
 | [Decisions](docs/DECISIONS/README.md)      | Accepted, provisional, and deferred decisions                                             |
@@ -75,4 +79,4 @@ docs/            product, commercial research, architecture, ADRs
 
 ## Before a launch
 
-Read [Roadmap](docs/ROADMAP.md). First complete authentication/age-assurance proof and the real wheel milestone. Private partner data requires the privacy release gate; purchases require explicit processor underwriting and approval. Intended markets, merchant entity, tax treatment, final privacy/legal documents, and production operations remain decisions. Do not submit merchant applications or contact anyone on the user's behalf without instructions.
+Read [Roadmap](docs/ROADMAP.md). The public release does not complete authentication or private product features. The next product milestone is the real discovery wheel with the applicable adult-access review. Private partner data requires the identity/privacy/deletion release gate; purchases require explicit processor suitability and approval. Intended sensitive-feature markets, merchant entity, tax treatment and final private-service legal documents remain decisions. Do not submit merchant applications or contact anyone on the user's behalf without instructions.

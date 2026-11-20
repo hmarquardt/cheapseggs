@@ -14,6 +14,8 @@ for (const file of readdirSync("migrations")
 const seed = readFileSync("seeds/local.sql", "utf8");
 db.exec(seed);
 db.exec(seed);
+db.exec(readFileSync("seeds/production.sql", "utf8"));
+db.exec(readFileSync("seeds/production.sql", "utf8"));
 assert.equal(db.prepare("SELECT count(*) AS count FROM activity_versions").get()?.count, 3);
 assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
 for (const row of db.prepare("SELECT * FROM activity_versions").all()) {

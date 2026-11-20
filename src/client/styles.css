@@ -626,3 +626,44 @@ h3 {
     transition: none !important;
   }
 }
+
+.public-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1.3rem;
+  margin-block: 1rem;
+  font-size: 0.9rem;
+}
+.public-nav a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.analytics-choice {
+  border-top: 1px solid var(--border);
+  padding-block: 1.5rem 2rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.analytics-choice p {
+  margin-bottom: 0.7rem;
+}
+.analytics-choice button {
+  border: 1px solid var(--border-bright);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cream);
+  padding: 0.6rem 1rem;
+  min-height: 44px;
+  margin: 0.25rem 0.5rem 0.25rem 0;
+}
+.prose ul {
+  padding-left: 1.5rem;
+}
+.prose li {
+  margin-bottom: 0.8rem;
+  color: var(--muted);
+}
+.prose .pill {
+  margin-bottom: 1.5rem;
+}

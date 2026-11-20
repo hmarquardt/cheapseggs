@@ -1,3 +1,11 @@
-# Foundation preview: review before a separately approved public launch.
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /api/
+Disallow: /play/
+Disallow: /account/
+Disallow: /auth/
+Disallow: /invite/
+Disallow: /assessments/
+Disallow: /results/
+
+Sitemap: https://cheapseggs.com/sitemap.xml

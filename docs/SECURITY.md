@@ -2,6 +2,8 @@
 
 Threat model date: 2026-11-19. This is a design review and release checklist, not a security certification. The foundation stores only non-explicit fixtures. Private-data, billing and identity APIs remain disabled.
 
+**Public release extension, 2026-11-20:** deployment is now authorized for the non-explicit public foundation. Production has no functioning identity/session system and sets no authentication cookies; unfinished auth/payments return 503 and private assessment/couple paths return generic 404/no-store/noindex. Only three reviewed non-explicit samples are seeded, with no user/test account or private-response data. `wrangler.production.jsonc` separates bindings from local emulation and disables request logging. Social metadata and WebSite JSON-LD are static, with exact hash-based CSP permission rather than unsafe-inline. Optional CFLab fetches are consented and public-path allowlisted; raw URL/referrer/answer/session identifiers are excluded. Real private/erotic functionality still requires all existing gates. [Deployment](DEPLOYMENT.md) and [Analytics](ANALYTICS.md) document boundaries and actual evidence.
+
 ## Assets, actors and trust boundaries
 
 Highest impact assets: private answers/exclusions, membership and match disclosures, identity/session credentials, deletion state, billing identity and entitlement integrity. Attackers include unauthenticated bots, compromised users, a deliberately probing partner, a former partner, abusive invite senders, malicious content contributors, compromised dependencies, and operational administrators. A partner is an independent partially trusted actor; membership is not authorization to read private responses.

@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cheapseggs",
+  "account_id": "b1aa310aa0a1638d72b8b086a21e557c",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-11-19",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "cheapseggs.com", "custom_domain": true },
+    { "pattern": "www.cheapseggs.com", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "404-page"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cheapseggs-production",
+      "database_id": "ef9ff0b0-97d5-428b-81df-cd02fe342bb8",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": { "APP_ENV": "production", "DEPLOY_REVISION": "unset" },
+  "version_metadata": { "binding": "WORKER_VERSION" },
+  "observability": { "enabled": false }
+}

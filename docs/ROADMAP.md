@@ -6,6 +6,8 @@
 
 Approval for this foundation does not approve the entire application, billable provisioning or deployment. The next milestone below is proposed work, not implied authorization to execute it now.
 
+**Superseding authorization, 2026-11-20:** the user has now authorized committing/pushing, required Cloudflare resources, public production deployment, domain routing, CFLab, Search Console setup and automated releases. This authorizes the safe public shell, not the entire product or unexpected paid subscriptions. Release integration adds nine useful public pages, social art/metadata, canonical/sitemap/robots, production configuration and CI/CD. Auth, real games/recipes, private matching/assessments and purchases remain planned. [Launch report](LAUNCH_REPORT.md) records which operational postconditions are actually verified and which external prerequisites remain.
+
 ## Recommended order
 
 ```mermaid

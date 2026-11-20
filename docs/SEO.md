@@ -1,5 +1,23 @@
 # Discovery, acquisition and search architecture
 
+## Public release state (2026-11-20)
+
+The public-deployment assignment supersedes the original global-noindex foundation setting. Exactly nine canonical indexable pages are generated: `/`, `/wheel/`, `/date-night/`, `/chemistry/`, `/secret-menu/`, `/recipes/`, `/about/`, `/privacy/`, `/terms/`. Feature pages contain substantive explanations and explicit planned/not-playable status, not empty placeholders or fabricated working products. `/play/`, APIs, invitations, accounts, private assessments/results and 404s remain noindex; private placeholders return 404/503 and cannot expose user data.
+
+Each public page has a distinct initial-HTML title, description, canonical, robots, Open Graph title/description/type/url/site/image/type/dimensions/alt and X large-image metadata. Canonical origin is `https://cheapseggs.com`; public paths use trailing slashes, aliases and www redirect permanently. `sitemap.xml` contains only those nine canonical URLs and robots declares it. Browser, Facebook, X/Twitter and LinkedIn user agents must receive identical HTML. Automated metadata/PNG checks do not establish that any social platform rendered a live card.
+
+The default plus five feature social cards are original SVG art rendered to PNG at 1200×630 with the retro burgundy/pink/champagne identity. Public assets need no R2 bucket. `scripts/generate-social.ts` and source SVGs support future variants; page/image mapping is in `src/content/public-pages.ts`. No explicit imagery, private result or invite token appears in a card URL. Only factual WebSite JSON-LD is published; no fake reviews/prices, Organization identity or SoftwareApplication rich-result claims for unimplemented games. Google's [software-app guidance](https://developers.google.com/search/docs/appearance/structured-data/software-app) is not a justification to mark a planned feature as functioning software.
+
+### Google Search Console: added, not verified
+
+The existing CFLab service-account credential was used server-side without exposing its private key/token. Initial API listing showed eight accessible existing properties and no CheapSeggs entry. `sites.add` for **`sc-domain:cheapseggs.com` returned 204**; a subsequent GET returned **`siteUnverifiedUser`**. This registers the property for the service account but does not verify ownership, grant the human owner's account access, or establish search reporting.
+
+Google's Site Verification token endpoint returned 403 because **Site Verification API is disabled in project `184307746744`**. Exact enabling URL: `https://console.developers.google.com/apis/api/siteverification.googleapis.com/overview?project=184307746744`. No verification TXT value was invented. The available local Cloudflare OAuth session also cannot read/edit DNS records directly; Workers custom-domain provisioning uses a different permitted API. A durable zone-scoped DNS credential or owner DNS action is needed to apply a genuine Google token.
+
+Owner path: open Search Console in the intended Google account, add/select the Domain property `cheapseggs.com`, obtain Google's actual DNS TXT verification value, add it to the existing Cloudflare zone and complete verification. Grant the existing CFLab Search Console service account appropriate access if server-side verification/reporting/submission is desired. Alternatively enable the Site Verification API in the existing project and provide the required DNS authorization so the supported token/verification flow can be retried. Submit `https://cheapseggs.com/sitemap.xml` using an account with permission. A rejected submission is not success, and no indexing/ranking outcome is guaranteed.
+
+CFLab's GSC collector has a reviewed property allowlist; registering the first-party site does **not** widen it. No other repository/collector/scheduler was changed. Add a reviewed CheapSeggs mapping only in a separately scoped CFLab change once property permission exists, following its own CI/release rules. First-party pageviews and Google Search Console data remain distinct. The [launch report](LAUNCH_REPORT.md) records actual live sitemap and submission checks.
+
 ## Practical acquisition strategy
 
 Lead with useful, original date-night entertainment and an immediately understandable wheel. A distinctive “Wheel of Misfortune” clip without intimate result content can be shareable; brand recognition is the wedge, not thousands of thin keyword pages. Organic/editorial and permission-based creator collaborations are initial tests, not assumed free scalable acquisition. Never collect intimate selections for targeting or retargeting.
@@ -23,7 +41,7 @@ No search-volume, ranking or CAC figures are claimed; none were purchased or mea
 
 ## Information architecture
 
-Proposed public routes after launch review:
+Possible later editorial expansion (the current nine routes are listed above):
 
 ```text
 /
@@ -42,11 +60,11 @@ Each public feature page answers a different question with original examples, mo
 
 Private routes under `/play/`, future `/account/`, invite callbacks and all private APIs: noindex, no-store where sensitive, authentication/authorization on records. Private URLs never enter sitemaps, Open Graph, analytics query strings or canonical tags. Robots is not a security control. Authentication prevents crawlable data disclosure; noindex merely communicates indexing preference.
 
-**Current scaffold is intentionally non-indexable**: global robots disallow and X-Robots/meta noindex. Remove these only for approved public pages at launch, keeping private route rules. No final production canonical/og:url is emitted while the service is only local. There is no sitemap claiming unfinished features are published.
+The original local scaffold was globally non-indexable. The public release replaces that setting only for the nine reviewed explanation/policy pages; games are still not represented as implemented.
 
 ## Sharing and distribution experiments
 
-Public social metadata uses brand/feature title and a tasteful neon-sign/wheel illustration. Commission/export a licensed 1200×630 PNG/WebP before public sharing; the scaffold has no share-image claim. Never place a private result, heat/category preference, partner identity, invite token or recipe contents in a public preview URL. User-triggered sharing should default to the generic entry page; sharing a specific result requires a separate explicit disclosure flow and is deferred.
+Public social metadata uses brand/feature title and a tasteful neon-sign/wheel illustration. Original 1200×630 PNG social artwork and editable SVG sources are included in this release. Never place a private result, heat/category preference, partner identity, invite token or recipe contents in a public preview URL. User-triggered sharing should default to the generic entry page; sharing a specific result requires a separate explicit disclosure flow and is deferred.
 
 Test creator partnerships with adult audiences and a transparent product brief, newsletter/editorial outreach only with instruction and permission, a few seasonal original recipe articles, and guest-to-partner invitations. Do not send any outreach during this assignment. Public campaign codes may be a small allowlisted enum, not sexual-interest tags. Disable referrer leakage on invite/private pages.
 
@@ -56,6 +74,6 @@ Tradeoff: explicit branding improves recognition among interested adults and can
 
 ## Planned standalone Chemistry Check funnel (2026-11-20)
 
-[Chemistry Check](CHEMISTRY_CHECK.md) could support an honest public `/chemistry-check/` explanation and original editorial pages about expectations before a first date, accepting differences and discussing relationship goals. This is a distinct intent from established-couple games and could introduce the brand earlier. No search-volume, viral-growth or ad-eligibility claim is established. Non-sensitive example questions and 25/50/100 depth explanations may be tested alongside the Wheel's research; launch the actual assessment after the first playable Wheel and its independent auth/privacy gate.
+[Chemistry Check](CHEMISTRY_CHECK.md) has a public `/chemistry/` explanation and could support and original editorial pages about expectations before a first date, accepting differences and discussing relationship goals. This is a distinct intent from established-couple games and could introduce the brand earlier. No search-volume, viral-growth or ad-eligibility claim is established. Non-sensitive example questions and 25/50/100 depth explanations may be tested alongside the Wheel's research; launch the actual assessment after the first playable Wheel and its independent auth/privacy gate.
 
-Default sharing sends only a generic public entry link. Assessment invitations use expiring noindex/no-store private URLs with no score, question choices or counterpart identity in preview metadata. Results never become public “compatibility badges” or indexed pair pages. A later invitation to explore the Wheel or form a couple is a separate voluntary action, never selected from sexual scores, mismatches or hidden dealbreakers. The product does not search for strangers or arrange meetings; communicate its actual scope in public copy and underwriting rather than claiming a new policy exemption. No routes or public page were added by this planning change.
+Default sharing sends only a generic public entry link. Assessment invitations use expiring noindex/no-store private URLs with no score, question choices or counterpart identity in preview metadata. Results never become public “compatibility badges” or indexed pair pages. A later invitation to explore the Wheel or form a couple is a separate voluntary action, never selected from sexual scores, mismatches or hidden dealbreakers. The product does not search for strangers or arrange meetings; communicate its actual scope in public copy and underwriting rather than claiming a new policy exemption. The initial planning change added no executable assessment; this release adds only its public explanation page.

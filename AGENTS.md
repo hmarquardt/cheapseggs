@@ -2,7 +2,8 @@
 
 Read README.md and the relevant docs before changes. This is an adults-only entertainment product. Keep humor in packaging; never make boundaries, refusal, identity, or accessibility the joke.
 
-- This assignment authorizes local scaffolding only. Production deployment, billable infrastructure, live payment integration, and implementing the whole application require further user approval. Do not add credentials or enable paid services.
+- The 2026-11-20 production assignment authorizes Git commits/pushes, required Cloudflare resources, deployment, apex/www routing, CFLab analytics, Search Console setup and GitHub Actions delivery. It supersedes the original local-only restriction. Do not buy third-party services, enable unexpected recurring charges, publish credentials, or enable unfinished private workflows. Authentication/private matching/payment feature implementation remains separately scoped.
+- GitHub main is the release source. Validate before deploying; production releases must identify their commit through /api/version and pass live smoke checks. Prefer the GitHub Actions validate → deploy → verify pipeline; any bootstrap/manual exception must be committed/pushed first and documented. Never force-push or deploy a dirty checkout.
 - Default platform: one Cloudflare Worker + static assets + D1; R2 only for media when needed. Maintain a modular monolith. No AI dependency in the MVP.
 - Each person is an independent identity. Relationship membership, authentication, consent eligibility, and commercial entitlement are separate checks. A MAYBE is never automatic eligibility; heat and purchases cannot override boundaries.
 - Only YES/YES at the exact current content version enters a mutual pool. Recheck active membership, sharing, consent epoch, publication revision, and entitlements on every shared read/use. No stale authorization caches or client-authoritative results.

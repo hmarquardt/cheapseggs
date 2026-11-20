@@ -54,6 +54,7 @@ test("worker readiness, sample-only catalog, private endpoints and static header
   expect((await request.get("/api/v1/preferences/another-user")).status()).toBe(404);
   expect((await request.post("/api/payments/webhook")).status()).toBe(503);
   const privateShell = await request.get("/play/");
+  expect(privateShell.status()).toBe(200);
   expect(privateShell.headers()["cache-control"]).toBe("no-store");
   expect(privateShell.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
 });

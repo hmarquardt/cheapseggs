@@ -38,7 +38,7 @@ function Lounge() {
   return (
     <>
       <aside class="topline" aria-label="Preview status">
-        THE LOUNGE · LOCAL FOUNDATION PREVIEW
+        THE LOUNGE · EARLY PUBLIC PREVIEW
       </aside>
       <header class="site-header wrap">
         <a class="wordmark" href="/">

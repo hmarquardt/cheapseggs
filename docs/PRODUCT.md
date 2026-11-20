@@ -2,6 +2,8 @@
 
 Status: proposed product, foundation implemented. Research checked 2026-11-19. Numerical targets below are validation hypotheses, not observed behavior.
 
+**2026-11-20 public launch scope:** the user authorized deployment of the safe current foundation. Implemented public pages explain the planned Wheel, Date Night Machine, Chemistry Check, Secret Menu and Cookbook, with about/privacy/preview terms, complete social metadata and a non-explicit lounge preview. Clear planned/not-playable labels remain. No registration, real assessment/invitation, stored private answer, generated recipe, playable wheel or checkout is enabled. Optional public-page analytics does not emit fictional product completions. [Launch report](LAUNCH_REPORT.md) separates implemented, deployed and independently verified results.
+
 ## Promise and initial audience
 
 CheapSeggs helps consenting adults discover what turns them both on, have fun exploring possibilities, and make memorable evenings together. It is entertainment and chemistry: an invitation to play, with no relationship score, performance goal, or clinical curriculum.

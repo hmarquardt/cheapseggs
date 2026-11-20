@@ -4,6 +4,8 @@ Research/decision date: 2026-11-19. “Accepted” means a foundation architectu
 
 Chemistry Check extension: 2026-11-20. [ADR 0005](0005-chemistry-check.md) accepts the independent assessment/privacy boundaries and records a provisional after-Wheel pilot/commercial recommendation. Implementation remains deferred.
 
+Public production extension: [ADR 0006](0006-public-production-launch.md) records the superseding deployment authorization, safe public-only scope, GitHub delivery, minimal CFLab integration and verifiable external-account prerequisites.
+
 | ADR                                      | Status                                          | Decision                                                                                                        |
 | ---------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | [0001](0001-stack.md)                    | Accepted                                        | Hono + Preact/Vite, static public HTML, one Worker, D1, R2 media deferred                                       |

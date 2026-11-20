@@ -2,6 +2,8 @@
 
 Status: accepted foundation stack; production auth, age assurance and commerce integrations remain gated. Sources checked 2026-11-19.
 
+**Production integration update, 2026-11-20:** the user authorized public deployment. The safe public release configuration is implemented with explicit local/production bindings, Worker-first asset handling, canonical redirects, initial-HTML metadata and a public-only CFLab adapter. Private auth/assessment/activity/payment functionality is still gated. See [Deployment](DEPLOYMENT.md) and [launch report](LAUNCH_REPORT.md) for actual operational state; earlier local-only statements below describe the initial stage.
+
 ## Stack decision
 
 | Option                         | Advantages                                                                                  | Costs / decision                                                                                                 |
@@ -209,4 +211,12 @@ sequenceDiagram
 
 ## Deployment and operational boundaries
 
-Local Wrangler uses an all-zero local binding ID, no routes, no production secrets, no R2 and disabled observability. CI runs checks/local D1 only. Future staging and production use separate Worker names, D1s, buckets, secret sets, email/processor sandboxes and access policies. No intimate production data in staging. Use least-privilege Cloudflare/GitHub tokens, protected release review and dependency updates. Production configuration and a recovery drill are explicit launch deliverables, not assumed done by a successful local build.
+### Current public-release configuration
+
+`wrangler.production.jsonc` names Worker `cheapseggs`, the existing Cloudflare account, new `cheapseggs-production` D1 and two custom domains. `wrangler.jsonc` retains only local D1 state. Both execute the Worker before assets so Hono can apply consistent CSP, indexing controls and redirects, including www→apex and public URL aliases. Asset responses are cloned before middleware modifies immutable service headers. APIs/private routes are not an SPA fallback.
+
+Vite builds the existing Preact preview and public JS/CSS. `scripts/build-public.ts` then emits nine useful public HTML pages and the sitemap from `src/content/public-pages.ts`. Metadata is present in the delivered HTML for all user agents. Only WebSite structured data is used; planned games are not advertised as functioning SoftwareApplications or rated products. Original social SVG/PNG cards are tracked static assets. No R2 binding is justified yet.
+
+`/api/version` exposes the deployment's Git SHA plus Cloudflare version metadata, while every response has a revision header. GitHub validation precedes guarded release/migration/seed/deploy and independent live smoke tests. Runtime logs stay off and no auth cookies/secrets are active. [Analytics](ANALYTICS.md) documents opt-in public-only collection using the real CFLab collector with seven-day raw retention. [SEO](SEO.md) distinguishes an added but unverified Search Console property from actual Google ownership or sitemap acceptance. No sensitive workflow is enabled by these integrations.
+
+Local Wrangler uses an all-zero local binding ID, no routes, no production secrets, no R2 and disabled observability. CI now validates and releases the explicit production configuration; see the runbook for credential and first-bootstrap status. Future staging must use a separate Worker, D1, secret set and email/processor sandboxes with explicit access policies. No intimate production data in staging. Use least-privilege Cloudflare/GitHub tokens, protected release review and dependency updates. Production HTTP/database verification is a release gate; a private-data restore drill remains required before collecting sensitive records.
