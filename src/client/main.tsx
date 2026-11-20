@@ -253,7 +253,8 @@ function Lounge() {
               Enter the lounge
             </button>
             <p class="small-note">
-              This acknowledgement is not age verification. No account, no cookies, nothing saved.
+              This acknowledgement is not age verification. The wheel does not save your boundary
+              settings. Account sign-in is separate.
             </p>
           </section>
         ) : (

@@ -1,5 +1,27 @@
 # Public launch evidence
 
+## M3A first production release — 2026-11-20
+
+| Evidence             | Observed                                                                                                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Implemented release  | `0f09272e528ec1e664221b22bf86a5a68ae130d2`                                                                                                                                                                                                             |
+| GitHub pipeline      | [44806692479](https://github.com/hmarquardt/cheapseggs/actions/runs/44806692479): validate and deploy, including independent production smoke, passed                                                                                                  |
+| Worker               | `5e51e3d5-c724-458c-8a6a-fb81d2c99dfe`; `/api/version` revision and Cloudflare `workers/tag` both match that release                                                                                                                                   |
+| Account availability | `/account/` 200/no-store/noindex; `/api/account/status` email sign-in true, age verification false, restricted content false; unauthenticated account GET 401                                                                                          |
+| Real email setup     | Cloudflare Email Sending enabled for cheapseggs.com; SPF, DKIM and DMARC resolve publicly; fixed accounts@cheapseggs.com native sender; independent auth secret provisioned securely                                                                   |
+| Real transport check | 2026-11-20 19:59 UTC: the production form accepted one code request to the founder's Cloudflare owner inbox. Native transport acceptance confirmed; inbox receipt not independently observed. No code or recipient was written into evidence artifacts |
+| Live browser         | Mobile 390×844: 0 axe violations, no horizontal overflow, code sending requires an explicit adult declaration, code request creates no session/cookie; unauthenticated account remains 401                                                             |
+| Automated checks     | 111 unit/integration assertions across 10 files; generated auth-schema drift; compiled workerd/D1 lifecycle; local D1 migrations/seed/FK checks; 22 desktop/mobile browser cases                                                                       |
+| Evidence files       | CI artifact `production-verification/production-smoke.json`; local ignored `artifacts/m3a-account-live.json` and downloaded `artifacts/m3a-first-release/production-smoke.json` contain no codes, cookies or recipient                                 |
+
+Implemented: maintained Better Auth 1.7.27 registration/sign-in, email recovery, seven-day absolute/24h idle sessions, fresh-auth deletion, device/all-device revocation, separate adult declarations, optional non-explicit category approvals and explicit guest discard before account navigation. The public guest wheel remains account-free with its existing boundaries. A follow-up release records this evidence and clarifies that separately signed-in visitors may already have an account cookie; that cookie does not affect guest selection.
+
+Supported access states: guest; registered with absent/expired/withdrawn adulthood declaration; registered self-declared adult; independently selected preview category approvals. Independently age-verified and premium-entitled states are modeled as separate checks but cannot be obtained through M3A. All real assurance callbacks, restricted adult content, private matching, Chemistry Check and payments remain closed.
+
+Exact restricted-content blockers: no approved launch-entity/jurisdiction matrix or content classification; no approved assurance provider/budget/DPA/retention agreement; no implemented verified callback/epoch/replay/revocation lifecycle; specialist sensual/kink content review and the applicable sensitive-data/privacy/deletion-restore gates remain outstanding. [AGE_ASSURANCE.md](AGE_ASSURANCE.md) records primary-source research, vendor options, price evidence and the activation checklist. No age-assurance service or new subscription was activated.
+
+The table records the first M3A release, not an assertion that later documentation or copy revisions have the same SHA. Read the current `/api/version` and the latest successful pipeline artifact for current production identity.
+
 ## M2.1 privacy and abuse hardening release (2026-11-20)
 
 | Item                     | Observed                                                                                                                                                                                                           |

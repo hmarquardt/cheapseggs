@@ -1,5 +1,9 @@
 # Validation evidence
 
+## M3A evidence (2026-11-20)
+
+`npm run check` passed with 111 unit/integration cases across 10 files, generated Better Auth schema drift, fresh SQLite schema/seed checks, frontend/Worker builds and compiled workerd/D1 email/session/deletion proof. Actual local Wrangler D1 migrations 0003/0004, repeatable seeds and foreign keys passed. `npm run test:e2e` passed 22 desktop/mobile cases including account UX and axe checks. No automated test sends live email. Production release [0f09272 / run 44806692479](https://github.com/hmarquardt/cheapseggs/actions/runs/44806692479) passed validation, deployment and independent smoke. Separate live mobile checks established native email transport acceptance, no automatic session without the code, no overflow and no axe violations; inbox receipt was not independently confirmed. See [LAUNCH_REPORT.md](LAUNCH_REPORT.md).
+
 ## M2.1 wheel privacy and abuse hardening (2026-11-20)
 
 Bounded maintenance pass on the released M2 wheel. Validated locally on macOS arm64, Node 26.13.0.
