@@ -5,6 +5,10 @@ const SIZE = 240;
 const CENTER = SIZE / 2;
 const RADIUS = 104;
 const WEDGE_COLORS = ["#c53058", "#7b2445", "#95294c", "#5d1b38"];
+const IDLE_WEDGES = 8;
+/** Captions sit at the rim and run inward, so they never cross into a neighbour. */
+const LABEL_RADIUS = 90;
+const LABEL_WIDTH = 13;
 
 interface Props {
   segments: SpinSegmentDto[];
@@ -29,7 +33,7 @@ function wedgePath(start: number, end: number): string {
 }
 
 /** Two short caption lines; the full title always stays in the list below the wheel. */
-function captionLines(label: string, width = 11): string[] {
+function captionLines(label: string, width = 13): string[] {
   const words = label.replace("…", "").split(" ").filter(Boolean);
   const lines: string[] = [];
   for (const word of words) {
@@ -60,8 +64,10 @@ export function Wheel({ segments, selectedIndex, durationMs, spinning, spinCount
     });
   }, [selectedIndex, segments, spinCount]);
 
-  const step = segments.length > 0 ? 360 / segments.length : 360;
-  const single = segments.length === 1;
+  // Before the first spin the machine still has to look like a machine.
+  const idle = segments.length === 0;
+  const wedgeCount = idle ? IDLE_WEDGES : segments.length;
+  const step = 360 / (wedgeCount || 1);
   const bulbs = Array.from({ length: 20 }, (_, index) => index);
 
   return (
@@ -91,14 +97,15 @@ export function Wheel({ segments, selectedIndex, durationMs, spinning, spinCount
             );
           })}
           <circle cx={CENTER} cy={CENTER} r={RADIUS + 3} class="wheel-rim" />
-          {single ? (
+          {wedgeCount === 1 ? (
             <circle cx={CENTER} cy={CENTER} r={RADIUS} fill={WEDGE_COLORS[0]} />
           ) : (
-            segments.map((segment, index) => {
+            Array.from({ length: wedgeCount }, (_, index) => {
               const center = -90 + index * step;
               return (
                 <path
-                  key={segment.id}
+                  key={`wedge-${index}`}
+                  class={idle ? "wheel-wedge is-idle" : "wheel-wedge"}
                   d={wedgePath(center - step / 2, center + step / 2)}
                   fill={WEDGE_COLORS[index % WEDGE_COLORS.length]}
                   stroke="#2a0f1c"
@@ -107,22 +114,24 @@ export function Wheel({ segments, selectedIndex, durationMs, spinning, spinCount
               );
             })
           )}
-          {segments.length > 1 &&
+          {wedgeCount > 1 &&
             segments.map((segment, index) => {
-              const center = -90 + index * step;
-              const lines = captionLines(segment.label);
+              const angle = -90 + index * step;
+              // Radial captions, flipped on the left half so none of them read upside down.
+              const flipped = Math.cos((angle * Math.PI) / 180) < 0;
+              const lines = captionLines(segment.label, LABEL_WIDTH);
               return (
                 <g
                   key={`label-${segment.id}`}
-                  transform={`rotate(${center + 90} ${CENTER} ${CENTER})`}
+                  transform={`rotate(${flipped ? angle + 180 : angle} ${CENTER} ${CENTER})`}
                 >
                   {lines.map((line, lineIndex) => (
                     <text
                       key={line}
                       class="wheel-caption"
-                      x={CENTER}
-                      y={CENTER - 46 + lineIndex * 11}
-                      textAnchor="middle"
+                      x={flipped ? CENTER - LABEL_RADIUS : CENTER + LABEL_RADIUS}
+                      y={CENTER + (lines.length === 1 ? 3 : lineIndex === 0 ? -2 : 9)}
+                      text-anchor={flipped ? "start" : "end"}
                     >
                       {line}
                     </text>
@@ -131,8 +140,8 @@ export function Wheel({ segments, selectedIndex, durationMs, spinning, spinCount
               );
             })}
           <circle cx={CENTER} cy={CENTER} r={22} class="wheel-hub-ring" />
-          <text class="wheel-hub-label" x={CENTER} y={CENTER + 5} textAnchor="middle">
-            CS
+          <text class="wheel-hub-label" x={CENTER} y={CENTER + 5} text-anchor="middle">
+            {idle ? "SPIN" : "CS"}
           </text>
         </svg>
       </div>

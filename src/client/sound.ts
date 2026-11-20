@@ -51,6 +51,32 @@ export function playTick(progress: number, enabled: boolean): void {
   blip(760 + progress * 220, 0, 0.035, "square", 0.035);
 }
 
+let tickTimer: number | null = null;
+
+export function stopSpinTicks(): void {
+  if (tickTimer === null || typeof window === "undefined") return;
+  window.clearTimeout(tickTimer);
+  tickTimer = null;
+}
+
+/**
+ * Decelerating ticks for the length of the animation. Decorative and silent unless the
+ * visitor turned sound on; a new spin or the end of a spin cancels the pending timer.
+ */
+export function startSpinTicks(durationMs: number, enabled: boolean): void {
+  stopSpinTicks();
+  if (!enabled || durationMs <= 0 || typeof window === "undefined") return;
+  const started = window.performance.now();
+  const schedule = (): void => {
+    const progress = Math.min((window.performance.now() - started) / durationMs, 1);
+    playTick(progress, true);
+    if (progress >= 1) return;
+    // ~60ms per tick at speed, stretching to ~320ms as the wheel settles.
+    tickTimer = window.setTimeout(schedule, 60 + progress * progress * 260);
+  };
+  schedule();
+}
+
 export function playLanding(enabled: boolean): void {
   if (!enabled) return;
   blip(523.25, 0, 0.16, "triangle", 0.06);

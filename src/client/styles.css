@@ -729,9 +729,13 @@ h3 {
 .wheel-disc.is-spinning .wheel-bulb {
   animation-duration: 0.35s;
 }
+.wheel-wedge.is-idle {
+  opacity: 0.5;
+}
 .wheel-caption {
   font-family: var(--font-body);
-  font-size: 9.5px;
+  /* Radial captions: 8px keeps 13 characters clear of the hub at 320px. */
+  font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.02em;
   fill: var(--cream);

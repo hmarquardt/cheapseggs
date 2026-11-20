@@ -2,7 +2,7 @@ import { render } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { EmptyHint, SpinResponse, WheelConfigDto } from "../domain/wheel";
 import { ApiError, createGuestToken, loadWheel, requestSpin, resetGuest } from "./api";
-import { playLanding } from "./sound";
+import { playLanding, startSpinTicks, stopSpinTicks } from "./sound";
 import { MenuForm } from "./wheel/MenuForm";
 import { ResultCard } from "./wheel/ResultCard";
 import { StageAside } from "./wheel/StageAside";
@@ -11,6 +11,8 @@ import { Wheel } from "./wheel/Wheel";
 import "./styles.css";
 
 const SPIN_MS = 3400;
+/** Mirrors the server bound on `excludedActivities`, so "not tonight" cannot wedge a spin. */
+const MAX_EXCLUSIONS = 50;
 
 const EMPTY_CONFIG: WheelConfigDto = {
   wheel: {
@@ -34,6 +36,7 @@ function messageFor(code: string): string {
     return "That is a lot of spinning. Clear this session to start fresh.";
   if (code === "spin_conflict" || code === "spin_invalidated")
     return "That spin is out of date. Spin again and the wheel will draw fresh.";
+  if (code === "rate_limited") return "The lounge is busy. Give it a minute, then spin again.";
   if (code === "invalid_request") return "Something in those settings was not valid. Try again.";
   return "The wheel could not answer. Check your connection and try again.";
 }
@@ -66,6 +69,8 @@ function Lounge() {
   const entryFocus = useRef(false);
   const resultHeading = useRef<HTMLElement | null>(null);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => stopSpinTicks, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,11 +107,13 @@ function Lounge() {
       if (phase === "spinning" || !config) return;
       setError(null);
       setPhase("spinning");
+      startSpinTicks(reduceMotion ? 0 : SPIN_MS, next.sound);
       const idempotencyKey = pendingKey.current ?? crypto.randomUUID();
       pendingKey.current = idempotencyKey;
       try {
         const payload = await requestSpin(token.current, toSpinBody(next, idempotencyKey));
         if (payload.status === "empty") {
+          stopSpinTicks();
           pendingKey.current = null;
           setResponse(payload);
           setPhase("empty");
@@ -117,9 +124,11 @@ function Lounge() {
         setResponse(payload);
         setSpinCount((count) => count + 1);
         await new Promise((resolve) => setTimeout(resolve, reduceMotion ? 0 : SPIN_MS));
+        stopSpinTicks();
         setPhase("result");
         playLanding(next.sound);
       } catch (caught) {
+        stopSpinTicks();
         setError(
           caught instanceof ApiError ? messageFor(caught.code) : messageFor("request_failed"),
         );
@@ -133,7 +142,10 @@ function Lounge() {
     if (response?.status !== "result") return;
     const { id, title } = response.result;
     setHiddenTitles((current) => ({ ...current, [id]: title }));
-    update({ excludedActivities: [...settings.excludedActivities, id] });
+    // Newest exclusions win; the list stays inside the server's bound.
+    update({
+      excludedActivities: [...settings.excludedActivities, id].slice(-MAX_EXCLUSIONS),
+    });
     setResponse(null);
     setPhase("idle");
     document.getElementById("stage-title")?.focus();

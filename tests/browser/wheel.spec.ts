@@ -92,3 +92,55 @@ test("an empty menu is reported honestly with no invented result", async ({ page
   await expect(page.getByText(/Nothing was loosened for you/)).toBeVisible();
   await expect(page.locator("#result-title")).toHaveCount(0);
 });
+
+test("the drawn wheel points at the winner and keeps captions inside the rim", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await enterLounge(page);
+
+  // Before the first spin the machine has to look deliberate, not like an empty circle.
+  await expect(page.locator(".wheel-svg path.wheel-wedge")).toHaveCount(8);
+  await expect(page.locator(".wheel-hub-label")).toHaveText("SPIN");
+
+  await page.getByRole("button", { name: /Spin the wheel/ }).click();
+  await expect(page.locator("#result-title")).toBeVisible({ timeout: 5000 });
+  await expect(page.locator(".wheel-hub-label")).toHaveText("CS");
+
+  const geometry = await page.evaluate(() => {
+    const disc = document.querySelector(".wheel-disc") as HTMLElement;
+    const svg = document.querySelector(".wheel-svg") as SVGSVGElement;
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(disc).transform);
+    const rotation = Math.atan2(matrix.b, matrix.a) * (180 / Math.PI);
+    const wedges = svg.querySelectorAll("path.wheel-wedge").length;
+    const step = 360 / wedges;
+    const raw = -rotation / step;
+    const underPointer = Math.round(((raw % wedges) + wedges) % wedges) % wedges;
+    const winner = [...document.querySelectorAll(".shortlist li")].findIndex((item) =>
+      item.classList.contains("is-winner"),
+    );
+    const radius = (point: { x: number; y: number }) => Math.hypot(point.x - 120, point.y - 120);
+    const captions = [...svg.querySelectorAll("text.wheel-caption")].map((node) => {
+      const text = node as SVGTextElement;
+      return Math.max(
+        radius(text.getStartPositionOfChar(0)),
+        radius(text.getEndPositionOfChar(text.getNumberOfChars() - 1)),
+      );
+    });
+    return {
+      underPointer,
+      winner,
+      wedges,
+      captions: captions.length,
+      maxCaptionRadius: Math.round(Math.max(...captions)),
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+
+  expect(geometry.wedges).toBe(8);
+  expect(geometry.underPointer).toBe(geometry.winner);
+  expect(geometry.captions).toBeGreaterThan(1);
+  // Captions sit inside the rim (107) and outside the hub (22).
+  expect(geometry.maxCaptionRadius).toBeLessThanOrEqual(101);
+  expect(geometry.maxCaptionRadius).toBeGreaterThan(60);
+  // A rotated wheel and long captions must not push the page sideways.
+  expect(geometry.overflow).toBeLessThanOrEqual(0);
+});
