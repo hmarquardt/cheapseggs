@@ -42,6 +42,18 @@ New automated coverage added for M2:
 
 No new runtime dependency was added; the wheel, sound and animation are first-party code.
 
+### Production release (M2)
+
+Release `dbfdeeb8bc7a3d3895ac5584a9fd91a81fa73dd0` / Worker
+`37595d94-f426-4da0-8292-1fbf23f20148` passed [GitHub run
+44778212175](https://github.com/hmarquardt/cheapseggs/actions/runs/44778212175) (validate +
+deploy + smoke) and an independent live smoke at 2026-11-20T16:58:15Z. Live assertions
+included the content gate (`byHeat["3"] === 0`), a real spin with an 8-wedge shortlist and
+`discovery-prompt-not-consent`, replay of the same key, `409 spin_conflict` for a changed
+body, `204` reset, and a mobile browser run with zero cookies and zero browser storage.
+Evidence: `artifacts/production-smoke.json`, `artifacts/production-wheel-mobile.png` and
+[Launch report](LAUNCH_REPORT.md).
+
 ### Verification limits (M2)
 
 Not done: professional content review of the 44 published entries, moderated adult

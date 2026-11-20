@@ -1,5 +1,42 @@
 # Public launch evidence
 
+## M2 release — first playable Wheel of Misfortune (2026-11-20)
+
+Commit **`dbfdeeb8bc7a3d3895ac5584a9fd91a81fa73dd0`** was pushed to `main` and released by
+[GitHub run 44778212175](https://github.com/hmarquardt/cheapseggs/actions/runs/44778212175):
+`validate` **success** (lint, strict types, config/seed drift, 77 unit/API tests over real
+SQLite, local D1 migrate + double seed + FK check, 16 desktop/mobile browser tests, builds) and
+`deploy` **success** (guarded release, remote migrations `0001`+`0002`, generated catalog seed,
+tagged Worker upload, production smoke).
+
+| Evidence                  | Observed result                                                                                                                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Production identity       | `/api/version` → revision `dbfdeeb…3dd0`, Worker `37595d94-f426-4da0-8292-1fbf23f20148`, `production`                                                                                                                                                                                             |
+| CI production smoke       | passed in the deploy job; `production-verification` artifact uploaded for that SHA                                                                                                                                                                                                                |
+| Independent smoke         | `EXPECTED_REVISION=dbfdeeb… npm run smoke:production` passed at 2026-11-20T16:58:15Z with the same SHA and Worker version                                                                                                                                                                         |
+| Wheel configuration       | `GET /api/v1/wheels/misfortune` → 44 published entries, `byHeat {0:17,1:21,2:6,3:0}`, 3 opt-in categories, revision `misfortune@1+7ed96c53b1dc5e61`                                                                                                                                               |
+| Live spin                 | `POST /api/v1/spins` (spicy + touch opt-in) → 200, 8-wedge shortlist, `mode: discovery-prompt-not-consent`, 24h guest expiry, `eligibleCount 12`                                                                                                                                                  |
+| Idempotency in production | same key/body replays one result; changed body → `409 spin_conflict`; `DELETE /api/v1/guest` → 204 (all asserted by the smoke)                                                                                                                                                                    |
+| Real device run           | iPhone 13 viewport against `https://cheapseggs.com/play/`: acknowledgement → spin → result card (`Kitchen sway`, Movement/Mild/10 min), 8-item list with the winner marked, no horizontal overflow, **0 cookies, 0 local/session storage**, screenshot in `artifacts/production-wheel-mobile.png` |
+
+### Deliberate boundary observation
+
+The live page logs one blocked-resource console error:
+`static.cloudflareinsights.com/beacon.min.js` violates `script-src 'self'`. Cloudflare injects
+that automatic Web Analytics beacon at the edge; our CSP blocks it, which is the intended
+behaviour (CheapSeggs ships its own consented, minimised CFLab adapter and no third-party
+script). It is not an application error, no request reached the collector from our code, and the
+fix would be to permit a tracker we did not choose — so it stays blocked and documented.
+
+### What this release does and does not claim
+
+Delivered: a working guest Discovery wheel with a gated non-explicit catalog, server-authoritative
+selection, readable/accessible presentation and transient guest state. Not delivered and not
+claimed: professional content review, moderated adult usability testing, heat-3 or explicit
+content, accounts, partner matching, assessments, recipes, purchases, or any analytics of spins.
+
+## Public foundation release (2026-11-20)
+
 The safe public application is live from GitHub. Independent full production verification passed on 2026-11-20 at 15:11 UTC for the release recorded below. The safe application is public explanations and a non-explicit design preview, not working games or private account features.
 
 ## Implemented scope
