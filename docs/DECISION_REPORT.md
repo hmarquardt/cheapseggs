@@ -14,7 +14,7 @@
 | Payments   | Mainstream restrictions make suitability uncertain/likely poor; CCBill/Segpay shortlist for written underwriting, Verotel secondary; none selected or integrated            |
 | Security   | Biggest risks are partner inference, account/inbox compromise, stale shared results, privileged runtime access and backup resurrection; no E2EE claim                       |
 | Costs      | Local $0; modeled service/email cost $5/$25/$85.19 monthly at 1k/10k/100k MAU, excluding age checks, payments, support/content and other business costs                     |
-| Validation | Lint/types/build/Worker dry run; 37 unit/API tests, fresh SQLite/local D1 checks; 8 browser tests including metadata and analytics boundaries                               |
+| Validation | Lint/types/build/Worker dry run; 38 unit/API tests, fresh SQLite/local D1 checks; 8 browser tests including metadata and analytics boundaries                               |
 | Next       | M2 bounded guest Discovery Mode wheel, with M1b auth/adult-access proof before collecting private partner data                                                              |
 
 ## Files and artifacts

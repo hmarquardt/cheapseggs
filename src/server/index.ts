@@ -41,6 +41,13 @@ app.use("*", async (c, next) => {
     c.header("X-Robots-Tag", "noindex, nofollow");
     return c.json({ error: "not_found" }, 404);
   }
+  if (c.env?.APP_ENV === "production" && url.protocol !== "https:") {
+    c.header("Cache-Control", "no-store");
+    c.header("X-Robots-Tag", "noindex, nofollow");
+    if (c.req.method !== "GET" && c.req.method !== "HEAD")
+      return c.json({ error: "https_required" }, 400);
+    return c.redirect(`${SITE_ORIGIN}${url.pathname}${url.search}`, 308);
+  }
   if (url.protocol === "https:") c.header("Strict-Transport-Security", "max-age=31536000");
   if (/^\/(api|play|account|auth|invite|assessments|results)(\/|$)/.test(url.pathname)) {
     c.header("Cache-Control", "no-store");

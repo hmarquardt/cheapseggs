@@ -1,6 +1,12 @@
 # Operating cost and unit economics
 
-USD estimates per month; pricing checked **2026-11-19**. No resources were enabled or purchased. Scenarios are workload models, not Cloudflare quotes or measured production bills. All account-level allowances below assume CheapSeggs alone consumes them; shared Cloudflare accounts can change the result.
+USD estimates per month; pricing checked **2026-11-19**. The original foundation enabled no resources; the production update below records actual provisioning. Scenarios are workload models, not Cloudflare quotes or measured production bills. All account-level allowances below assume CheapSeggs alone consumes them; shared Cloudflare accounts can change the result.
+
+## Public release inventory update (2026-11-20)
+
+One Worker and a small production D1 now exist on the user's **already configured Workers Standard account**. No new subscription, email/AI provider, R2 bucket, Turnstile service, paid backup job or third-party purchase was enabled. The account's existing $5 minimum/allowances are shared with other projects; they cannot be attributed entirely to CheapSeggs or assumed unused. Actual incremental cost depends on the account-wide bill. D1 readback after seeding was about 389 KB, three public examples and zero users. CFLab remains existing shared infrastructure; Google Site Verification/Search Console required no new billing plan.
+
+Worker-first routing intentionally invokes the Worker for public pages and asset responses so security/revision headers are consistent. Ordinary static handling's free request rule must **not** be applied to those invocations: count them in billed Worker request/CPU totals. The scenarios below retain their original hypothetical 40 requests/MAU; use that as a total request budget including asset invocations, or add measured asset traffic before relying on it. There is no measured MAU/unit cost yet. The public preview sends no email and uses no paid authentication or payment service. See [Deployment](DEPLOYMENT.md) for resource IDs and [launch evidence](LAUNCH_REPORT.md).
 
 ## Published rates used
 

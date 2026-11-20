@@ -12,13 +12,32 @@ async function get(path: string, options?: RequestInit): Promise<Response> {
   });
   return response;
 }
-const versionResponse = await get("/api/version");
-assert.equal(versionResponse.status, 200);
-const version = (await versionResponse.json()) as {
-  revision: string;
-  workerVersion: string;
-  environment: string;
-};
+type ReleaseVersion = { revision: string; workerVersion: string; environment: string };
+let observed: ReleaseVersion | undefined;
+// DNS and Worker versions propagate after upload. Bound that grace period; never
+// retry application errors or weaken the exact commit/header assertions below.
+for (let attempt = 1; attempt <= 12; attempt++) {
+  let response: Response;
+  try {
+    response = await get("/api/version");
+  } catch (error) {
+    if (attempt === 12) throw error;
+    console.log(`Waiting for release network availability (${attempt}/12).`);
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    continue;
+  }
+  assert.equal(response.status, 200, "Release endpoint must be healthy");
+  const candidate = (await response.json()) as ReleaseVersion;
+  if (expected && candidate.revision !== expected && attempt < 12) {
+    console.log(`Waiting for expected commit propagation (${attempt}/12).`);
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    continue;
+  }
+  observed = candidate;
+  break;
+}
+assert.ok(observed, "No production revision observed within release grace period");
+const version = observed;
 if (expected) assert.equal(version.revision, expected);
 assert.match(version.revision, /^[a-f0-9]{40}$/);
 assert.equal(version.environment, "production");
@@ -112,6 +131,13 @@ if (base === SITE_ORIGIN) {
   assert.equal(redirect.status, 308);
   assert.equal(redirect.headers.get("location"), `${SITE_ORIGIN}/chemistry/`);
   evidence.push({ check: "www-to-apex", result: 308 });
+  const insecure = await fetch("http://cheapseggs.com/", {
+    redirect: "manual",
+    signal: AbortSignal.timeout(20000),
+  });
+  assert.equal(insecure.status, 308);
+  assert.equal(insecure.headers.get("location"), `${SITE_ORIGIN}/`);
+  evidence.push({ check: "http-to-https", result: 308 });
 }
 mkdirSync("artifacts", { recursive: true });
 writeFileSync(

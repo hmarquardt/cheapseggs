@@ -32,6 +32,23 @@ describe("foundation API boundary", () => {
       (await app.request("https://www.cheapseggs.com/api/auth/sign-in", { method: "POST" })).status,
     ).toBe(400);
   });
+  it("requires HTTPS on production and rejects unknown hosts", async () => {
+    const env = { APP_ENV: "production" };
+    const response = await app.request(
+      "http://cheapseggs.com/wheel/?source=example",
+      undefined,
+      env,
+    );
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe("https://cheapseggs.com/wheel/?source=example");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(
+      (await app.request("http://cheapseggs.com/api/auth/sign-in", { method: "POST" }, env)).status,
+    ).toBe(400);
+    expect((await app.request("https://untrusted.example/api/health", undefined, env)).status).toBe(
+      404,
+    );
+  });
   it("exposes release metadata without cookies or secrets", async () => {
     const response = await app.request("/api/version");
     expect(response.status).toBe(200);

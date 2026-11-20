@@ -1,6 +1,6 @@
 # Public launch evidence
 
-Initial public deployment is live from GitHub; final release verification is in progress. The safe application is public explanations and a non-explicit design preview, not working games or private account features.
+The safe public application is live from GitHub. Independent full production verification passed on 2026-11-20 at 15:11 UTC for the release recorded below. The safe application is public explanations and a non-explicit design preview, not working games or private account features.
 
 ## Implemented scope
 
@@ -10,13 +10,29 @@ Nine indexable explanation/policy pages, six original 1200×630 social cards wit
 
 CFLab site `as_v3ng10kbDYMLWnFWOsf52W` is legitimately registered with apex/www domains and seven-day raw retention. The consent adapter is implemented; a real production opt-in browser pageview returned 204 and was read back in reporting storage with no session/referrer/campaign/props fields. No authenticated reporting UI session is available, and none will be fabricated.
 
-Search Console domain property `sc-domain:cheapseggs.com` is DNS-verified. The existing service account and intended human owner have ownership; API readback is `siteOwner`. Site Verification API was enabled in existing project 184307746744. Google accepted the sitemap submission (204), and readback is pending processing with zero initial warnings/errors. No indexing outcome is claimed.
+Search Console domain property `sc-domain:cheapseggs.com` is DNS-verified. The existing service account and intended human owner have ownership; API readback is `siteOwner`. Site Verification API was enabled in existing project 184307746744. Google accepted the sitemap submission (204); the owner’s live sitemap UI subsequently reported Success and 9 discovered pages. The overview is still processing; no indexing/ranking outcome is claimed.
 
 GitHub validation/release workflow and production main-only environment are configured. Durable repository secret `CLOUDFLARE_API_TOKEN` is configured with account/zone scopes documented in the runbook, expiring November 2027. Main requires validation; the production environment allows main only. No manual bootstrap deploy was used.
 
 ## Release evidence
 
-Initial GitHub release [44758973504](https://github.com/hmarquardt/cheapseggs/actions/runs/44758973504), commit `407736ce6db2528a664817dc25f43802537733a3`, passed validation and deployed, but smoke verification caught first DNS propagation and then a missing asset-response revision header. The header is corrected after asset dispatch, with browser regression coverage; final release results follow. Read `/api/version` and the production smoke artifact for authoritative runtime identity. See [Deployment](DEPLOYMENT.md) for full resource IDs, recovery procedure, credential scopes and initial bootstrap conditions.
+| Evidence                             | Observed result                                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Branch/source                        | main, hmarquardt/cheapseggs; all completed changes pushed                                                                |
+| First independently verified release | `83ac36c255bff687cd338b80fa556d767b26a39f`                                                                               |
+| Worker version for that release      | `6bf0daac-42a3-4898-80fa-de62ffdbc04d`                                                                                   |
+| Independent smoke time               | 2026-11-20 15:11:43 UTC; all checks passed                                                                               |
+| Public delivery                      | Apex HTTPS, www 308, nine canonical pages, assets, robots and sitemap                                                    |
+| Metadata                             | Browser/Facebook/X/LinkedIn identical initial HTML; six 1200×630 PNG cards available                                     |
+| API/data                             | Health and D1 ready 200; exactly three reviewed public samples; no users; no FK violations                               |
+| Sensitive boundaries                 | Private placeholders 404 + noindex/no-store; auth and payments 503; no auth cookies                                      |
+| Security                             | CSP, HSTS, no-referrer, frame restriction and per-response revision verified                                             |
+| UI                                   | Live mobile landing/Chemistry pages have no horizontal overflow or page errors; screenshots reviewed                     |
+| Local validation                     | 38 unit/API tests, fresh SQLite/local D1 migration/seed checks, lint/types/config/build, 8 desktop/mobile browser checks |
+
+The initial [release run](https://github.com/hmarquardt/cheapseggs/actions/runs/44758973504) failed smoke checks after deployment: first DNS propagation, then a missing asset revision header. The header was fixed with browser regression coverage. The [next run](https://github.com/hmarquardt/cheapseggs/actions/runs/44760304315) passed validation and published the verified release, but its immediate smoke saw the prior Worker during propagation. Independent checks subsequently passed with the exact new SHA/version. The verifier now bounds a propagation grace period and still fails application errors, commit mismatches after the deadline and all subsequent assertions. These failed runs are retained as evidence, not described as successful releases.
+
+Every later main release must complete validation, deployment and smoke in [GitHub Actions](https://github.com/hmarquardt/cheapseggs/actions/workflows/ci.yml). Its `production-verification` artifact records the deployed SHA, Cloudflare version and check time. Read `https://cheapseggs.com/api/version` for the current identity; documentation commits also release, so the first verified identity above is historical evidence rather than a hardcoded current version.
 
 ## Remaining product gates
 

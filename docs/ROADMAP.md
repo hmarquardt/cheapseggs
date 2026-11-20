@@ -2,7 +2,7 @@
 
 ## Current delivery
 
-**M1a — Local architecture and foundation: implemented.** Product/commercial research, threat model, brand/UX specification, one Worker shell, three safe public fixtures, SQL migrations, consent/entitlement/selection primitives, fail-closed integration boundaries and CI definition. [Validation](VALIDATION.md) reports executed checks. No playable wheel, live authentication, real private-data storage, payment processing, R2 bucket, public launch or production resources.
+**M1a — Local architecture and foundation: implemented.** Product/commercial research, threat model, brand/UX specification, one Worker shell, three safe public fixtures, SQL migrations, consent/entitlement/selection primitives, fail-closed integration boundaries and CI definition. [Validation](VALIDATION.md) reports executed checks. At the original foundation checkpoint there was no playable wheel, live authentication, real private-data storage, payment processing, R2 bucket, public launch or production resource. The public-release update below supersedes its deployment status.
 
 Approval for this foundation does not approve the entire application, billable provisioning or deployment. The next milestone below is proposed work, not implied authorization to execute it now.
 
