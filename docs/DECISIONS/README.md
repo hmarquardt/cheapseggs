@@ -14,6 +14,7 @@ Public production extension: [ADR 0006](0006-public-production-launch.md) record
 | [0004](0004-privacy-and-launch-gates.md)         | Accepted boundaries; implementation deferred    | No E2EE claim, no intimate marketing analytics, no private-data/public/payment launch before respective gates          |
 | [0006](0006-public-production-launch.md)         | Accepted; verified evidence in launch report    | Public deployment via GitHub Actions with verified revision and live smoke checks                                      |
 | [0007](0007-m2-guest-wheel.md)                   | Accepted and implemented (M2)                   | Guest Discovery wheel: gated non-explicit catalog, server-only weighted selection, 24h nonce without stored boundaries |
-| [0008](0008-m2-1-fingerprint-and-rate-limits.md) | Accepted and implemented (M2.1)                 | HMAC-keyed spin fingerprints (visible fallback) and Cloudflare-native rate limits on the public guest endpoints        |
+| [0008](0008-m2-1-fingerprint-and-rate-limits.md) | Accepted; decision 2 superseded by 0009         | HMAC-keyed spin fingerprints and Cloudflare-native rate limits on the public guest endpoints                           |
+| [0009](0009-mandatory-fingerprint-key.md)        | Accepted and implemented (M2.1)                 | The fingerprint key is mandatory: no unkeyed mode exists and spins fail closed with a fixed 503 without a valid key    |
 
 Change a material choice through a new ADR and update the affected docs. Record tradeoffs and evidence, not just a package name. Use explicit “supersedes” links rather than silently rewriting history after implementation.

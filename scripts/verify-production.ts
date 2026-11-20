@@ -28,7 +28,12 @@ assert.match(version.revision, /^[a-f0-9]{40}$/);
 assert.equal(version.environment, "production");
 assert.ok(version.workerVersion);
 // Privacy and abuse gates: an unkeyed fingerprint or a missing limiter is a failed release.
-assert.equal(version.spinDigestKeyed, true, "spin fingerprints must be HMAC-keyed in production");
+assert.equal(
+  version.spinDigestKeyed,
+  true,
+  "production must serve a keyed spin fingerprint (the wheel fails closed otherwise)",
+);
+evidence.push({ check: "spin-fingerprint", result: "hmac-keyed" });
 assert.deepEqual(version.rateLimits, { spin: true, wheel: true }, "rate limiting bindings");
 evidence.push({ check: "release", result: version });
 for (const path of ["/api/health", "/api/ready", "/api/v1/catalog/preview"]) {
@@ -71,6 +76,8 @@ const postSpin = (body: unknown) =>
     body: JSON.stringify(body),
   });
 const spinResponse = await postSpin(spinBody);
+// The keyed configuration must not break real spins: a 503 here is a fail-closed release.
+assert.notEqual(spinResponse.status, 503, "keyed release must not fail closed");
 assert.equal(spinResponse.status, 200);
 assert.equal(spinResponse.headers.get("set-cookie"), null);
 assert.equal(spinResponse.headers.get("cache-control"), "no-store");

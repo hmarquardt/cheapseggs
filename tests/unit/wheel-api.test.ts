@@ -4,17 +4,24 @@ import { canonicalRequest, spinRequestSchema, toEligibilityContext } from "../..
 import { app } from "../../src/server";
 import type { Bindings } from "../../src/server/bindings";
 import {
-  digest,
   loadWheelCatalog,
+  MAX_DIGEST_KEY_LENGTH,
   MIN_DIGEST_KEY_LENGTH,
-  REQUEST_DIGEST_DOMAIN,
   requestDigest,
   requestDigestKeyed,
 } from "../../src/services/wheel";
 import { createTestDatabase, seedCount, type TestDatabase } from "../support/d1";
 
-function envWith(db: D1Database, extra: Partial<Bindings> = {}): Bindings {
-  return { DB: db, APP_ENV: "local", ...extra } as unknown as Bindings;
+/** Local development always has a key; the required-key path is the only path. */
+const TEST_DIGEST_KEY = "test-digest-key-0123456789abcdef";
+
+function envWith(db: D1Database, extra: Record<string, unknown> = {}): Bindings {
+  return {
+    DB: db,
+    APP_ENV: "local",
+    SPIN_DIGEST_KEY: TEST_DIGEST_KEY,
+    ...extra,
+  } as unknown as Bindings;
 }
 
 function env(db: D1Database): Bindings {
@@ -517,10 +524,70 @@ describe("authoritative spins", () => {
   });
 });
 
-describe("request fingerprint privacy", () => {
-  it("keys the stored fingerprint so a database reader cannot test candidate boundaries", async () => {
+describe("required fingerprint key", () => {
+  async function spinWithKey(
+    database: TestDatabase,
+    secret: unknown,
+    body: Record<string, unknown> = {},
+    headers: Record<string, string> = {},
+  ) {
+    return app.request(
+      "/api/v1/spins",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-cheapseggs-guest": guestToken(),
+          ...headers,
+        },
+        body: JSON.stringify({ idempotencyKey: key(), ...body }),
+      },
+      envWith(database.db, { SPIN_DIGEST_KEY: secret }),
+    );
+  }
+
+  const unusable: [string, unknown][] = [
+    ["missing", undefined],
+    ["empty", ""],
+    ["short", "k".repeat(MIN_DIGEST_KEY_LENGTH - 1)],
+    ["padded", `${"k".repeat(MIN_DIGEST_KEY_LENGTH)} `],
+    ["multi-line", `k\n${"k".repeat(MIN_DIGEST_KEY_LENGTH)}`],
+    ["non-ascii", "ü".repeat(MIN_DIGEST_KEY_LENGTH)],
+    ["over-long", "k".repeat(MAX_DIGEST_KEY_LENGTH + 1)],
+    ["wrong type", 1234567890],
+  ];
+
+  it.each(unusable)("fails closed on a %s key without writing anything", async (_label, value) => {
+    expect(requestDigestKeyed(value)).toBe(false);
     const database = createTestDatabase();
-    const secret = "p".repeat(32);
+    const response = await spinWithKey(database, value, { heat: "spicy" });
+    expect(response.status).toBe(503);
+    // Controlled and nonsensitive: a fixed code, no configuration and no key material.
+    expect(await response.text()).toBe(JSON.stringify({ error: "unavailable" }));
+    expect(seedCount(database.raw, "guest_sessions")).toBe(0);
+    expect(seedCount(database.raw, "guest_spins")).toBe(0);
+    const version = (await (
+      await app.request("/api/version", {}, envWith(database.db, { SPIN_DIGEST_KEY: value }))
+    ).json()) as { spinDigestKeyed: boolean };
+    expect(version.spinDigestKeyed).toBe(false);
+  });
+
+  it("refuses to produce an unkeyed fingerprint at all", async () => {
+    const canonical = canonicalRequest(
+      spinRequestSchema.parse({ wheelId: "misfortune", idempotencyKey: key() }),
+    );
+    await expect(requestDigest(undefined, canonical)).rejects.toThrow(
+      "spin_digest_key_unavailable",
+    );
+    await expect(requestDigest("short", canonical)).rejects.toThrow("spin_digest_key_unavailable");
+    const stored = await requestDigest(TEST_DIGEST_KEY, canonical);
+    expect(stored).toMatch(/^[0-9a-f]{64}$/);
+    expect(requestDigestKeyed(TEST_DIGEST_KEY)).toBe(true);
+  });
+
+  it("stores an HMAC and never the boundary configuration", async () => {
+    const database = createTestDatabase();
+    const secret = "p".repeat(MIN_DIGEST_KEY_LENGTH);
     const body = {
       heat: "spicy",
       optIns: ["touch"],
@@ -528,18 +595,7 @@ describe("request fingerprint privacy", () => {
       idempotencyKey: key(),
     };
     const token = guestToken();
-    const response = await app.request(
-      "/api/v1/spins",
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-cheapseggs-guest": token,
-        },
-        body: JSON.stringify(body),
-      },
-      envWith(database.db, { SPIN_DIGEST_KEY: secret }),
-    );
+    const response = await spinWithKey(database, secret, body, { "x-cheapseggs-guest": token });
     expect(response.status).toBe(200);
 
     const canonical = canonicalRequest(spinRequestSchema.parse({ wheelId: "misfortune", ...body }));
@@ -548,48 +604,39 @@ describe("request fingerprint privacy", () => {
         request_digest: string;
       }
     ).request_digest;
-
     expect(stored).toHaveLength(64);
     expect(stored).toBe(await requestDigest(secret, canonical));
-    // The unkeyed hash is the one a DB reader could brute force from a small input space.
-    expect(stored).not.toBe(await digest(canonical));
-    expect(stored).not.toBe(await requestDigest(undefined, canonical));
+    expect(stored).not.toBe(await requestDigest("q".repeat(MIN_DIGEST_KEY_LENGTH), canonical));
 
-    // Replay correctness survives the keyed fingerprint.
-    const replay = await app.request(
-      "/api/v1/spins",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-cheapseggs-guest": token },
-        body: JSON.stringify(body),
-      },
-      envWith(database.db, { SPIN_DIGEST_KEY: secret }),
-    );
+    // Replay, concurrency and conflict semantics are unchanged under a valid key.
+    const replay = await spinWithKey(database, secret, body, { "x-cheapseggs-guest": token });
     expect(replay.status).toBe(200);
     expect(((await replay.json()) as { replayed: boolean }).replayed).toBe(true);
     expect(seedCount(database.raw, "guest_spins")).toBe(1);
+    const changed = await spinWithKey(
+      database,
+      secret,
+      { ...body, heat: "mild" },
+      { "x-cheapseggs-guest": token },
+    );
+    expect(changed.status).toBe(409);
+    expect(await changed.json()).toEqual({ error: "spin_conflict" });
   });
 
-  it("reports an unkeyed fingerprint instead of hiding the weaker fallback", async () => {
+  it("rejects a replay after the key changes instead of guessing", async () => {
     const database = createTestDatabase();
-    const canonical = canonicalRequest(
-      spinRequestSchema.parse({ wheelId: "misfortune", idempotencyKey: key() }),
-    );
-    expect(requestDigestKeyed(undefined)).toBe(false);
-    expect(requestDigestKeyed("short")).toBe(false);
-    // The fallback is still domain-separated, so it is not a bare hash of the request.
-    expect(await requestDigest(undefined, canonical)).toBe(
-      await digest(`${REQUEST_DIGEST_DOMAIN}\n${canonical}`),
-    );
-    const version = (await (
-      await app.request("/api/version", {}, envWith(database.db))
-    ).json()) as { spinDigestKeyed: boolean };
-    expect(version.spinDigestKeyed).toBe(false);
-  });
-
-  it("ignores a key that is too short to add any protection", async () => {
-    expect(requestDigestKeyed("x".repeat(MIN_DIGEST_KEY_LENGTH - 1))).toBe(false);
-    expect(requestDigestKeyed("x".repeat(MIN_DIGEST_KEY_LENGTH))).toBe(true);
+    const body = { idempotencyKey: key() };
+    const token = guestToken();
+    const first = await spinWithKey(database, TEST_DIGEST_KEY, body, {
+      "x-cheapseggs-guest": token,
+    });
+    expect(first.status).toBe(200);
+    const rotated = await spinWithKey(database, "r".repeat(MIN_DIGEST_KEY_LENGTH), body, {
+      "x-cheapseggs-guest": token,
+    });
+    expect(rotated.status).toBe(409);
+    expect(await rotated.json()).toEqual({ error: "spin_conflict" });
+    expect(seedCount(database.raw, "guest_spins")).toBe(1);
   });
 });
 

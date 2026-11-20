@@ -89,27 +89,39 @@ export async function digest(value: string): Promise<string> {
   return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
 }
 
-/** Shortest secret we accept for the idempotency HMAC; anything shorter is ignored. */
+/** Bounds for the spin idempotency HMAC key. */
 export const MIN_DIGEST_KEY_LENGTH = 32;
+export const MAX_DIGEST_KEY_LENGTH = 128;
+const DIGEST_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
 export const REQUEST_DIGEST_DOMAIN = "cheapseggs.spin.v1";
 
 /**
- * Idempotency fingerprint of a spin request.
+ * A key is usable only when it is a plain high-entropy token. Missing, empty, short,
+ * padded, escaped or non-ASCII values are treated as "not configured" instead of being
+ * coerced into a key, so a broken secret can never quietly weaken the fingerprint.
+ */
+export function requestDigestKeyed(secret: unknown): secret is string {
+  return (
+    typeof secret === "string" &&
+    secret.length >= MIN_DIGEST_KEY_LENGTH &&
+    secret.length <= MAX_DIGEST_KEY_LENGTH &&
+    DIGEST_KEY_PATTERN.test(secret)
+  );
+}
+
+/**
+ * Idempotency fingerprint of a spin request: HMAC-SHA-256 under the Worker secret.
  *
  * The preimage is a boundary configuration, which is exactly the class of data this
  * project promises not to keep. Its input space is small enough to enumerate (a few
  * thousand ceiling combinations, 2^8 exclusion sets, 2^5 supply sets), so an unkeyed
  * hash would let a database reader recover heat, opt-ins and hard-NOs by brute force.
- * Keying it with a Worker secret removes that inference; the digest then only proves
- * "same request" to a holder of the key. Without a configured key the fallback stays
- * unkeyed, which `/api/version` reports so a release can refuse to ship that state.
+ * There is deliberately no unkeyed mode: a caller without a valid key must refuse the
+ * operation instead of persisting a fingerprint that can be attacked offline.
  */
-export async function requestDigest(
-  secret: string | undefined,
-  canonical: string,
-): Promise<string> {
+export async function requestDigest(secret: unknown, canonical: string): Promise<string> {
+  if (!requestDigestKeyed(secret)) throw new Error("spin_digest_key_unavailable");
   const message = new TextEncoder().encode(`${REQUEST_DIGEST_DOMAIN}\n${canonical}`);
-  if (!requestDigestKeyed(secret)) return hex(await crypto.subtle.digest("SHA-256", message));
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -118,11 +130,6 @@ export async function requestDigest(
     ["sign"],
   );
   return hex(await crypto.subtle.sign("HMAC", key, message));
-}
-
-/** True when replays are protected by a keyed digest rather than a plain hash. */
-export function requestDigestKeyed(secret: string | undefined): boolean {
-  return typeof secret === "string" && secret.length >= MIN_DIGEST_KEY_LENGTH;
 }
 
 /** Supplier labels are editorial; which supplies are offered comes from served rows. */

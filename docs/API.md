@@ -32,13 +32,15 @@ result DTO (`mode: "discovery-prompt-not-consent"`), `eligibleCount` and the gue
 expiry; `200 {status:"empty"}` with neutral hints; `400 guest_session_required`;
 `409 spin_conflict` / `409 spin_invalidated`; `413`/`415`/`422` for malformed input;
 `429 guest_budget_exhausted`; `429 rate_limited` (with `retry-after: 60`) from the
-Cloudflare rate limit bindings; `503 unavailable`. `GET /api/v1/wheels/:wheel` shares the
+Cloudflare rate limit bindings; `503 unavailable` when the database is down **or when the
+required fingerprint key is missing or invalid** (fail closed, nothing persisted, no
+configuration echoed). `GET /api/v1/wheels/:wheel` shares the
 same `429 rate_limited` shape. See [Wheel](WHEEL.md) for the selection, retention and
 accessibility contract.
 
 `GET /api/version` returns `service`, `revision`, `workerVersion`, `environment` and two
-non-secret health flags: `spinDigestKeyed` (the persisted idempotency fingerprint is
-HMAC-keyed) and `rateLimits: {spin, wheel}` (both bindings are bound). The production
+non-secret health flags: `spinDigestKeyed` (a valid HMAC key is configured, so spins will
+not fail closed) and `rateLimits: {spin, wheel}` (both bindings are bound). The production
 release check fails when either is false, so a misconfigured deploy cannot be reported as
 green.
 

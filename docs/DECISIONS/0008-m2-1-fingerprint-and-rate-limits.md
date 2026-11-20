@@ -20,10 +20,13 @@ Decision:
    The key is a Worker secret set once with `wrangler secret put`, which survives deploys. The
    stored value then only proves "same request" to a holder of the key; replay, changed-request
    conflict and concurrent-duplicate behaviour are unchanged.
-2. **Degrade visibly, never silently.** Without a 32+ character key the Worker falls back to a
-   domain-separated unkeyed hash instead of refusing spins, and `GET /api/version` reports
-   `spinDigestKeyed`. The production release check fails on `false`, so the weaker state cannot be
-   shipped as a success — and it never becomes an outage if a secret is lost.
+2. **Degrade visibly, never silently.** _(Superseded 2026-11-20 by [ADR 0009](0009-mandatory-fingerprint-key.md):
+   the unkeyed fallback was removed. A mode that keeps writing fingerprints of the boundary
+   configuration is the vulnerability with an alarm attached, so the key is now required and the spin
+   endpoint fails closed.)_ Without a 32+ character key the Worker falls back to a domain-separated
+   unkeyed hash instead of refusing spins, and `GET /api/version` reports `spinDigestKeyed`. The
+   production release check fails on `false`, so the weaker state cannot be shipped as a success —
+   and it never becomes an outage if a secret is lost.
 3. **Accept deploy-time replay loss.** Rotating the key or shipping new digest logic makes the last
    24 h of fingerprints unmatchable. In-flight retries receive `409 spin_conflict`, which the
    interface already explains, rather than a wrong result.

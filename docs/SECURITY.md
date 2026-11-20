@@ -82,13 +82,16 @@ Before selling, counsel reviews digital-sales tax, refunds/withdrawal rights, au
 - Guest state: no cookie and no browser storage; only a keyed request fingerprint and
   catalog reference are persisted for 24h; explicit reset; bounded per-session budget;
   bounded lazy purge. No spin, boundary or result is logged or sent to analytics.
-- Fingerprint privacy (M2.1, 2026-11-20): the persisted idempotency value is
-  `HMAC-SHA-256(SPIN_DIGEST_KEY, domain ‖ canonical request)`. The preimage is a boundary
-  configuration with a small, enumerable input space, so an unkeyed hash would let a
-  database or backup reader recover heat, opt-ins and hard-NOs offline. With a key it only
-  proves "same request". `GET /api/version` reports `spinDigestKeyed`; the production
-  release check fails on `false`; a missing key degrades to a domain-separated unkeyed hash
-  rather than an outage, and that state is visible.
+- Fingerprint privacy (M2.1, 2026-11-20; key made mandatory same day): the persisted
+  idempotency value is `HMAC-SHA-256(SPIN_DIGEST_KEY, domain ‖ canonical request)`. The
+  preimage is a boundary configuration with a small, enumerable input space, so an unkeyed
+  hash would let a database or backup reader recover heat, opt-ins and hard-NOs offline.
+  With a key it only proves "same request". **There is no unkeyed fallback**: the spin
+  endpoint validates the key before touching guest state and returns a fixed
+  `503 unavailable` when it is missing, short, over-long or malformed, writing nothing.
+  `GET /api/version` reports `spinDigestKeyed` with the same rule; the production release
+  check rejects `false` and separately requires a successful live spin, so a misconfigured
+  deployment is a failed release rather than a quieter one.
 - Abuse protection (M2.1, 2026-11-20): Cloudflare rate limit bindings
   (`SPIN_RATE_LIMITER` 40/60 s, `WHEEL_RATE_LIMITER` 120/60 s, keyed by client address)
   guard the two public endpoints. Counters stay in Cloudflare infrastructure, no address or

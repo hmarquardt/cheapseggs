@@ -121,16 +121,26 @@ and the unchanged-boundary fallback.
 - Concurrent duplicates resolve to one row: the loser of the insert race re-reads the winning row
   and returns the same activity.
 
-**The fingerprint is keyed.** It is `HMAC-SHA-256(SPIN_DIGEST_KEY, domain ‖ canonicalRequest)`, not a
-plain hash. The preimage is the boundary configuration, whose input space is small: roughly 1.2k
-ceiling combinations, 2^8 category exclusion sets and 2^5 supply sets. A database reader could
-otherwise test candidates offline and recover heat, opt-ins and hard-NOs for a 24-hour row, which is
-exactly the data this project promises not to keep. With a key, the stored value only proves
-"same request" to someone who holds the key. `GET /api/version` reports `spinDigestKeyed` and the
-production release check fails if it is `false`; without a key the Worker still serves spins with a
-domain-separated unkeyed hash rather than refusing service. Rotating the key (or deploying new
-digest logic) invalidates 24 hours of in-flight replays, which surfaces as the honest `409
-spin_conflict` the client already handles.
+**The fingerprint is keyed, and the key is mandatory.** It is
+`HMAC-SHA-256(SPIN_DIGEST_KEY, domain ‖ canonicalRequest)`. The preimage is the boundary
+configuration, whose input space is small: roughly 1.2k ceiling combinations, 2^8 category exclusion
+sets and 2^5 supply sets. A database reader could otherwise test candidates offline and recover heat,
+opt-ins and hard-NOs for a 24-hour row, which is exactly the data this project promises not to keep.
+With a key the stored value only proves "same request" to someone who holds it.
+
+There is **no unkeyed mode**. `POST /api/v1/spins` validates the key before it reads or writes any
+guest row and returns `503 {"error":"unavailable"}` when the key is missing, empty, shorter than 32
+characters, longer than 128, or not a plain `[A-Za-z0-9_-]` token. The response is a fixed code: it
+never echoes the key, the request, or which validation failed. No guest session and no spin row is
+created in that state, so a misconfigured deployment stores nothing rather than something weaker.
+Local development ships a documented non-secret development key in `wrangler.jsonc`; production
+supplies the value only as a Worker secret.
+
+`GET /api/version` reports `spinDigestKeyed` using the same validity rule, and the production release
+check fails when it is `false` **and** requires a real live spin to succeed, so the fail-closed state
+cannot be mistaken for a healthy release. Rotating the key (or deploying new digest logic)
+invalidates 24 hours of in-flight replays, which surfaces as the honest `409 spin_conflict` the
+client already handles.
 
 ### Empty pools and hints
 
@@ -212,7 +222,7 @@ Properties and limits, stated plainly:
 
 | Layer                                                            | Coverage                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit                                                             | Request validation, context mapping, digest canonicalization, keyed vs unkeyed fingerprint, variety fallback, selection distribution/weights, shortlist invariants, caption clipping                                                                                                                                                                                                                              |
+| Unit                                                             | Request validation, context mapping, digest canonicalization, required-key matrix (missing/empty/short/padded/multi-line/non-ASCII/over-long/wrong type), variety fallback, selection distribution/weights, shortlist invariants, caption clipping                                                                                                                                                                |
 | Integration (`node:sqlite` + real migrations/seeds through Hono) | Catalog endpoint, opt-in/exclusion/heat filtering, draft exclusion, replay, changed digest, concurrent duplicates, foreign session, withdrawal invalidation, empty pool + hints, session reuse, 24h expiry, reset, budget, invalid/cross-site input, stored fingerprint keying, rate-limited 429 before guest state exists, fail-open limiter, result/wedge identity, repeat avoidance that cannot widen the pool |
 | Browser                                                          | Acknowledgement, focus order, reduced-motion instant result, readable alternative, hide/undo/clear, keyboard-only spin, empty-menu message, axe on landing/lounge/privacy/result, no storage or cookies, desktop + iPhone viewports                                                                                                                                                                               |
 

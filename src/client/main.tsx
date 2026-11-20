@@ -37,6 +37,8 @@ function messageFor(code: string): string {
   if (code === "spin_conflict" || code === "spin_invalidated")
     return "That spin is out of date. Spin again and the wheel will draw fresh.";
   if (code === "rate_limited") return "The lounge is busy. Give it a minute, then spin again.";
+  if (code === "unavailable")
+    return "The wheel is not available right now. Try again a little later.";
   if (code === "invalid_request") return "Something in those settings was not valid. Try again.";
   return "The wheel could not answer. Check your connection and try again.";
 }

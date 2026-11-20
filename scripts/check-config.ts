@@ -11,12 +11,18 @@ import { PUBLIC_PAGES } from "../src/content/public-pages.ts";
 
 const local = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
 const production = JSON.parse(readFileSync("wrangler.production.jsonc", "utf8"));
+/** Local development needs a usable key so the required-key path is the only path. */
+const LOCAL_DIGEST_KEY = "local-development-only-digest-key";
 assert.equal(local.vars.APP_ENV, "local");
 assert.equal(local.d1_databases[0].database_id, "00000000-0000-0000-0000-000000000000");
 assert.equal(production.name, "cheapseggs");
 assert.equal(production.account_id, "b1aa310aa0a1638d72b8b086a21e557c");
 assert.equal(production.d1_databases[0].database_id, "ef9ff0b0-97d5-428b-81df-cd02fe342bb8");
 assert.equal(production.vars.APP_ENV, "production");
+assert.equal(local.vars.SPIN_DIGEST_KEY, LOCAL_DIGEST_KEY);
+assert.ok(LOCAL_DIGEST_KEY.length >= 32 && /^[A-Za-z0-9_-]+$/.test(LOCAL_DIGEST_KEY));
+// Production supplies the HMAC key as a Worker secret, never as a plaintext var.
+assert.equal(production.vars.SPIN_DIGEST_KEY, undefined);
 assert.equal(production.assets.run_worker_first, true);
 assert.equal(production.workers_dev, false);
 assert.equal(production.preview_urls, false);

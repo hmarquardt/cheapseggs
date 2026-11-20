@@ -378,7 +378,7 @@
             }
           },
           "503": {
-            "description": "Database unavailable",
+            "description": "Database unavailable, or the required fingerprint key is missing or invalid (fail closed: nothing is persisted and no configuration is echoed)",
             "content": {
               "application/json": {
                 "schema": {
@@ -417,7 +417,7 @@
                     "environment": { "type": "string" },
                     "spinDigestKeyed": {
                       "type": "boolean",
-                      "description": "The stored spin fingerprint is HMAC-keyed rather than an unkeyed hash"
+                      "description": "A valid HMAC key is configured, so the spin endpoint will not fail closed"
                     },
                     "rateLimits": {
                       "type": "object",

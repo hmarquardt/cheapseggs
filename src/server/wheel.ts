@@ -36,6 +36,7 @@ import {
   purgeExpired,
   recentActivityIds,
   requestDigest,
+  requestDigestKeyed,
   type SpinRecord,
 } from "../services/wheel";
 import type { Bindings } from "./bindings";
@@ -220,6 +221,10 @@ function weightOf(catalog: WheelCatalog, activity: Activity): number {
 wheelRoutes.post("/spins", async (c) => {
   const env = c.env;
   if (!env?.DB) return c.json({ error: "unavailable" }, 503);
+  // Fail closed, before any guest row is read or written: without a valid key there is no
+  // fingerprint, and an unkeyed one would expose the boundary configuration to a database
+  // reader. The error stays generic and never echoes configuration or key material.
+  if (!requestDigestKeyed(env.SPIN_DIGEST_KEY)) return c.json({ error: "unavailable" }, 503);
   if (await rateLimited(env, "spin", c.req.header("cf-connecting-ip"))) return tooMany(c);
   if (!originAllowed(env, c.req.header("origin"), c.req.url)) {
     return c.json({ error: "origin_rejected" }, 403);

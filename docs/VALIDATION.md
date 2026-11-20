@@ -4,16 +4,16 @@
 
 Bounded maintenance pass on the released M2 wheel. Validated locally on macOS arm64, Node 26.13.0.
 
-| Check                  | Observed result                                                                                                                                                                                                                                                                                       |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run lint`         | Biome recommended rules pass (one pre-existing advisory about `innerText` in a browser test)                                                                                                                                                                                                          |
-| `npm run typecheck`    | Strict TypeScript passes                                                                                                                                                                                                                                                                              |
-| `npm run config:check` | Adds assertions for the two rate limit bindings: names, integer namespaces, 60 s period, limit ceiling, and four distinct namespace ids across local/production                                                                                                                                       |
-| `npm run seeds:check`  | Unchanged: 50 versions, both seed files match committed output                                                                                                                                                                                                                                        |
-| `npm test`             | **89 passing** unit/API tests in 8 files (was 77): keyed fingerprint, unkeyed fallback visibility, rate-limited 429 before guest state, limiter fail-open, result/wedge identity, 30-spin hard-NO and opt-in sweep, client state that tries to widen eligibility, repeat avoidance in a one-idea pool |
-| `npm run test:db`      | Unchanged schema constraints still pass                                                                                                                                                                                                                                                               |
-| `npm run test:e2e`     | **18 passing** browser tests (was 16): adds wheel geometry assertions — the wedge under the pointer equals the winner marked in the list, every caption stays inside the rim, and mobile has no horizontal overflow                                                                                   |
-| `npm run build`        | Vite + `wrangler deploy --dry-run` compile cleanly and print both rate limit bindings                                                                                                                                                                                                                 |
+| Check                  | Observed result                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint`         | Biome recommended rules pass (one pre-existing advisory about `innerText` in a browser test)                                                                                                                                                                                                                                                                                                                |
+| `npm run typecheck`    | Strict TypeScript passes                                                                                                                                                                                                                                                                                                                                                                                    |
+| `npm run config:check` | Adds assertions for the two rate limit bindings: names, integer namespaces, 60 s period, limit ceiling, and four distinct namespace ids across local/production                                                                                                                                                                                                                                             |
+| `npm run seeds:check`  | Unchanged: 50 versions, both seed files match committed output                                                                                                                                                                                                                                                                                                                                              |
+| `npm test`             | **97 passing** unit/API tests in 8 files: required-key matrix (missing, empty, short, padded, multi-line, non-ASCII, over-long, wrong type), keyed HMAC storage, replay/conflict/key-rotation semantics, rate-limited 429 before guest state, limiter fail-open, result/wedge identity, 30-spin hard-NO and opt-in sweep, client state that tries to widen eligibility, repeat avoidance in a one-idea pool |
+| `npm run test:db`      | Unchanged schema constraints still pass                                                                                                                                                                                                                                                                                                                                                                     |
+| `npm run test:e2e`     | **18 passing** browser tests (was 16): adds wheel geometry assertions — the wedge under the pointer equals the winner marked in the list, every caption stays inside the rim, and mobile has no horizontal overflow                                                                                                                                                                                         |
+| `npm run build`        | Vite + `wrangler deploy --dry-run` compile cleanly and print both rate limit bindings                                                                                                                                                                                                                                                                                                                       |
 
 Defects found and corrected in this pass (all reproducible before the fix):
 
@@ -37,8 +37,9 @@ Release `44b8b309938d805f976aaaf12921cb7a0143d90f` / Worker
 `d844edbe-3029-48e9-80d1-30a22e236faa` passed [GitHub run
 44784610515](https://github.com/hmarquardt/cheapseggs/actions/runs/44784610515) (validate → deploy →
 independent smoke) and an independent live smoke at 2026-11-20T17:43Z. Live assertions now include
-`spinDigestKeyed: true` and `rateLimits {spin, wheel} = {true, true}` — an unkeyed fingerprint or a
-missing limiter fails the release. A production Chromium session (iPhone 13 viewport) confirmed the
+`spinDigestKeyed: true` and `rateLimits {spin, wheel} = {true, true}` — an invalid fingerprint key or
+a missing limiter fails the release, and the smoke separately requires a live spin to return 200, so
+a keyed-but-broken configuration cannot pass either. A production Chromium session (iPhone 13 viewport) confirmed the
 wedge under the pointer is the winner marked in the list (`underPointer 1 = winnerIndex 1`), captions
 inside the rim (max radius 90 of 107), no horizontal overflow, **0 cookies and 0 storage entries**,
 and exactly one CSP violation: the zone-injected Cloudflare Web Analytics beacon, refused before it
@@ -54,6 +55,20 @@ threshold is configured at 40, and the platform is documented as approximate and
 few requests past the number is expected rather than a defect. The smoke immediately after the
 window reset passed, so ordinary play is unaffected. Evidence: `rateLimitProbe` in
 `artifacts/production-wheel-m2-1.json`.
+
+### Fail-closed fingerprint correction (2026-11-20, same day)
+
+The M2.1 fallback was removed: the fingerprint key is now mandatory and the spin endpoint fails
+closed. Verified locally:
+
+| Check                   | Observed result                                                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm test`              | **97 passing** (was 89). Eight key-shape cases — missing, empty, shorter than 32, padded, multi-line, non-ASCII, over-long, wrong type — each return `503 {"error":"unavailable"}`, create **no** guest session and **no** spin row, and report `spinDigestKeyed: false` |
+| Keyed-path preservation | Stored value equals `HMAC-SHA-256(key, domain ‖ canonical)` and changes with the key; replay returns one result; a changed body is `409 spin_conflict`; rotating the key turns a replay into `409 spin_conflict` rather than a guess or a new result                     |
+| `requestDigest` unit    | Rejects instead of hashing: `requestDigest(undefined, …)` and a short key both throw `spin_digest_key_unavailable`; the unkeyed code path no longer exists                                                                                                               |
+| Error surface           | The response body is exactly `{"error":"unavailable"}` — no key material, no request fields, no indication of which check failed; nothing is logged                                                                                                                      |
+| `npm run config:check`  | Local `wrangler.jsonc` declares the documented development key and production asserts **no** plaintext `SPIN_DIGEST_KEY` var (secret only)                                                                                                                               |
+| `npm run test:e2e`      | 18 passing; `npm run dev` now runs the required-key path, so browser coverage exercises the same branch as production                                                                                                                                                    |
 
 ### Verification limits (M2.1)
 

@@ -31,6 +31,6 @@
       "simple": { "limit": 600, "period": 60 }
     }
   ],
-  "vars": { "APP_ENV": "local" },
+  "vars": { "APP_ENV": "local", "SPIN_DIGEST_KEY": "local-development-only-digest-key" },
   "observability": { "enabled": false }
 }

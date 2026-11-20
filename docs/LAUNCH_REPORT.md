@@ -2,17 +2,17 @@
 
 ## M2.1 privacy and abuse hardening release (2026-11-20)
 
-| Item                     | Observed                                                                                                                                                                   |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release                  | commit `44b8b309938d805f976aaaf12921cb7a0143d90f`, Worker `d844edbe-3029-48e9-80d1-30a22e236faa`                                                                           |
-| CI                       | [run 44784610515](https://github.com/hmarquardt/cheapseggs/actions/runs/44784610515) — validate, deploy and independent smoke all passed                                   |
-| `/api/version`           | revision matches the pushed commit; `spinDigestKeyed: true`; `rateLimits {spin: true, wheel: true}`                                                                        |
-| Worker secret            | `SPIN_DIGEST_KEY` set once with `wrangler secret put` and still bound after deploy; the production check rejects an unkeyed fingerprint, so losing it cannot ship silently |
-| Live spin                | `Set the soundtrack` on a real spin; the wedge under the pointer equals the winner marked in the ordered list; captions inside the rim; no horizontal overflow             |
-| Guest privacy in browser | 0 cookies, 0 `localStorage`/`sessionStorage` entries after acknowledgement, spin and result                                                                                |
-| CSP                      | one violation: `static.cloudflareinsights.com/beacon.min.js` refused by `script-src 'self'`; no beacon payload sent                                                        |
-| Abuse control (live)     | 48 spins from one address: 43 accepted, then `429 {"error":"rate_limited"}` with `retry-after: 60`; the next smoke after the window reset passed                           |
-| Evidence                 | `artifacts/production-smoke.json`, `artifacts/production-wheel-m2-1.json`, `artifacts/production-wheel-m2-1.png`                                                           |
+| Item                     | Observed                                                                                                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Release                  | commit `44b8b309938d805f976aaaf12921cb7a0143d90f`, Worker `d844edbe-3029-48e9-80d1-30a22e236faa`                                                                                                                   |
+| CI                       | [run 44784610515](https://github.com/hmarquardt/cheapseggs/actions/runs/44784610515) — validate, deploy and independent smoke all passed                                                                           |
+| `/api/version`           | revision matches the pushed commit; `spinDigestKeyed: true`; `rateLimits {spin: true, wheel: true}`                                                                                                                |
+| Worker secret            | `SPIN_DIGEST_KEY` set once with `wrangler secret put` and still bound after deploy; it is mandatory — spins fail closed with 503 without a valid key, and the release check rejects that state before users see it |
+| Live spin                | `Set the soundtrack` on a real spin; the wedge under the pointer equals the winner marked in the ordered list; captions inside the rim; no horizontal overflow                                                     |
+| Guest privacy in browser | 0 cookies, 0 `localStorage`/`sessionStorage` entries after acknowledgement, spin and result                                                                                                                        |
+| CSP                      | one violation: `static.cloudflareinsights.com/beacon.min.js` refused by `script-src 'self'`; no beacon payload sent                                                                                                |
+| Abuse control (live)     | 48 spins from one address: 43 accepted, then `429 {"error":"rate_limited"}` with `retry-after: 60`; the next smoke after the window reset passed                                                                   |
+| Evidence                 | `artifacts/production-smoke.json`, `artifacts/production-wheel-m2-1.json`, `artifacts/production-wheel-m2-1.png`                                                                                                   |
 
 Fixed in this pass: the persisted fingerprint is HMAC-keyed (a database reader can no longer recover
 heat, opt-ins or hard-NOs by enumeration), the public endpoints carry Cloudflare-native per-location
