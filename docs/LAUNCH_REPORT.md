@@ -1,5 +1,31 @@
 # Public launch evidence
 
+## Chemistry Check demonstration release — 2026-11-20
+
+| Evidence            | Observed                                                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Implemented release | `e8544335716ea2270ae00fc951a96d62ad2ce21a` — "Build the Chemistry Check bank, scorer and playable demonstration"                                                                                                                     |
+| GitHub pipeline     | [44839491823](https://github.com/hmarquardt/cheapseggs/actions/runs/44839491823): validate, deploy and independent production smoke all succeeded                                                                                    |
+| Worker              | `090148e7-0b01-499c-b0ff-d5a6b851a9d7`; `/api/version` revision and `X-CheapSeggs-Revision` both equal the pushed commit                                                                                                             |
+| Shipped             | Versioned 100-question non-explicit bank, nested 25/50/100 manifests, acceptance-based scorer, tri-state hard-requirement evaluation and `/chemistry/` demonstration                                                                 |
+| Page                | `/chemistry/` 200 with canonical metadata, `index, follow`, its own hashed bundle and a no-JavaScript fallback; in sitemap                                                                                                           |
+| Live browser        | Mobile 390×844: sample report renders eight coarse bands, intimacy unassessed with the mutual opt-in explanation, no percentage, 0 horizontal overflow, no page errors, axe checked in the local suite                               |
+| Data boundary       | No `/api/` request, query parameter or request body carried demonstration answers; the page imports no analytics and emits no CFLab event                                                                                            |
+| Zone beacon         | Cloudflare attempts to inject `static.cloudflareinsights.com/beacon.min.js` on all pages; the existing CSP blocks it (`script-src 'self'`), observed on `/`, `/play/` and `/chemistry/`. No beacon executes. Pre-existing, unchanged |
+| Existing features   | Smoke artifact confirms wheels, Double Trouble/Dealer's Choice, restricted-content 404s, Date Night plan, cookbook, metadata and account boundaries still pass                                                                       |
+| Automated checks    | 190 unit/integration assertions in 15 files (27 Chemistry Check); 38 desktop/mobile browser cases including 4 new chemistry checks                                                                                                   |
+| Evidence files      | CI artifact `production-verification/production-smoke.json` (downloaded and inspected); no answers, invitations or private identifiers exist to leak                                                                                 |
+
+Implemented: the Increment 1 question catalog and deterministic scorer, and the Increment 2 playable
+demonstration. Nothing is persisted: there is no assessment table, invitation token, encrypted envelope,
+release approval, withdrawal route or account binding. Real two-person collection therefore remains
+**disabled by absence**, not by a flag that could be flipped accidentally.
+
+Not implemented or authorised: independent invitations, mutual release approvals, encrypted response
+storage, key lifecycle, purge/restore drills, cross-account authorization, paid depths and any
+compatibility claim beyond coarse editorial bands. Those are Increments 3–5 and require the independent
+security review described in [Chemistry Check](CHEMISTRY_CHECK.md) before any real submission is accepted.
+
 ## M3B experience release — 2026-11-20
 
 | Evidence            | Observed                                                                                                                                                                                                      |
