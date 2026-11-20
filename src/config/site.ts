@@ -22,7 +22,7 @@ export const SITE_JSON_LD = JSON.stringify({
   name: SITE_NAME,
   url: `${SITE_ORIGIN}/`,
   description:
-    "Playful discovery for consenting adults. Public preview; games and private accounts are in development.",
+    "Playful discovery for consenting adults: free wheels, a date-night generator and a romance cookbook. Accounts available; partner matching and purchases in development.",
 });
 
-export const SITE_JSON_LD_HASH = "'sha256-ucTIH5Cy7Re8fZeYfSvDI4eGBlGD37pRutrAVS9eIH4='";
+export const SITE_JSON_LD_HASH = "'sha256-fF0ewsBGAHOaW21+lrf0W+fhjy+DnXuZ8/zGe9Jxvwo='";

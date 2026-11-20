@@ -8,21 +8,39 @@ POST `/api/auth/sign-out`, `/api/account/revoke` (`{sessionId}` or `{all:true}`)
 
 GET `/api/v1/content/:id/:version` checks authoritative publication/access/category/entitlement state and returns generic 404 for forbidden or restricted content; it never exposes protected titles/metadata. No adult activity approval endpoint exists because restricted content remains closed. See AUTH.md and AGE_ASSURANCE.md.
 
+## M3B implemented experience API (2026-11-20)
+
+All experience routes are public, non-explicit, `no-store` and `noindex`. None reads an account cookie, and none returns restricted material.
+
+| Route                           | Behavior                                                                                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET `/api/v1/wheels`            | Public wheel directory: id, title, tagline, description, draw mode and eligible segment count. No activity content.                                                 |
+| GET `/api/v1/wheels/:wheel`     | One published wheel configuration (`misfortune`, `foreplay`, `double-trouble`, `dealers-choice`). Unknown or unpublished ids return 404.                            |
+| POST `/api/v1/spins`            | Accepts `wheelId` in the strict schema. Single, compatible-pair and house-category draws are still server-authoritative; a pair is persisted for idempotent replay. |
+| GET `/api/v1/date-night`        | Option lists, categories with blurbs, supply vocabulary, published recipe summaries and disclosure copy.                                                            |
+| POST `/api/v1/date-night/plans` | Requires the guest nonce, same-origin JSON and a bounded body. Returns a plan or an explicit empty result; `keep[]` re-times around kept steps. Nothing is stored.  |
+| POST `/api/v1/date-night/steps` | Rerolls or replaces one step after re-validating every submitted step against the current eligible pool and time budget.                                            |
+| GET `/api/v1/recipes`           | Published cookbook summaries.                                                                                                                                       |
+| GET `/api/v1/recipes/:id`       | One published recipe with activities and substitutions; 404 for unknown or restricted ids.                                                                          |
+
+Plan steps are validated server-side on every request; there is no client-authoritative eligibility. Unknown category or supply ids return 422. See [Experiences](EXPERIENCES.md).
+
 Choose **REST with OpenAPI 3.1**, same-origin JSON, versioned domain routes under `/api/v1`. REST makes security/resource ownership review and future embedded clients easier than a framework-bound RPC graph. Typed RPC would reduce some client boilerplate but couples transport/types and does not eliminate validation or authorization. Use Zod runtime validation plus generated OpenAPI when the first real mutation is implemented; the foundation has a small checked-in [OpenAPI contract](openapi.json) for implemented routes only. Do not publish speculative endpoints as functioning services.
 
 ## Implemented now
 
-| Route                         | Behavior                                                                                                                                                                                                                     |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET /api/health               | 200 service/stage only; no dependency details                                                                                                                                                                                |
-| GET /api/ready                | 200 if local migrated catalog is queryable, otherwise generic 503                                                                                                                                                            |
-| GET /api/v1/catalog/preview   | At most 12 explicitly public non-intimate free fixture records, fixed DTO, no personal context                                                                                                                               |
-| GET /api/v1/wheels/misfortune | Published wheel configuration only: catalog counts by heat, categories (including which require opt-in), supply vocabulary, option lists and disclosure text. No visitor or session data.                                    |
-| POST /api/v1/spins            | Guest Discovery spin. Strict bounded body, same-origin JSON, server-side eligibility and authoritative result, idempotent per client key, 24h guest TTL, `spins` never accepted from a partner or on another guest's behalf. |
-| DELETE /api/v1/guest          | Explicit reset: deletes the presenting guest session and cascades its spins. 204, idempotent, never reveals whether the session existed.                                                                                     |
-| /api/auth/*                   | 503 auth_not_configured                                                                                                                                                                                                      |
-| /api/payments/*               | 503 payments_not_configured                                                                                                                                                                                                  |
-| Other API routes              | 404 not_found; no private CRUD implementation                                                                                                                                                                                |
+| Route                       | Behavior                                                                                                                                                                                                                     |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET /api/health             | 200 service/stage only; no dependency details                                                                                                                                                                                |
+| GET /api/ready              | 200 if local migrated catalog is queryable, otherwise generic 503                                                                                                                                                            |
+| GET /api/v1/catalog/preview | At most 12 explicitly public non-intimate free fixture records, fixed DTO, no personal context                                                                                                                               |
+| GET /api/v1/wheels          | Public wheel directory (four wheels) with draw modes and segment counts; no activity content.                                                                                                                                |
+| GET /api/v1/wheels/:wheel   | One published wheel configuration: catalog counts by heat, categories (including which require opt-in), supply vocabulary, option lists and disclosure text. No visitor or session data.                                     |
+| POST /api/v1/spins          | Guest Discovery spin. Strict bounded body, same-origin JSON, server-side eligibility and authoritative result, idempotent per client key, 24h guest TTL, `spins` never accepted from a partner or on another guest's behalf. |
+| DELETE /api/v1/guest        | Explicit reset: deletes the presenting guest session and cascades its spins. 204, idempotent, never reveals whether the session existed.                                                                                     |
+| /api/auth/*                 | 503 auth_not_configured                                                                                                                                                                                                      |
+| /api/payments/*             | 503 payments_not_configured                                                                                                                                                                                                  |
+| Other API routes            | 404 not_found; no private CRUD implementation                                                                                                                                                                                |
 
 `GET /api/version` additionally exposes the non-secret Git commit, Worker version and environment for release verification. All API responses are no-store/noindex. Samples are intentionally safe public previews; the real adult catalog must require the market/assurance policy before delivery. Health is not readiness. No D1 query text or internal failure objects returned.
 

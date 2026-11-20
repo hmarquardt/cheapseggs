@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { DISCOVERY_ENTRIES } from "../../src/content/discovery/catalog";
 
 async function enterLounge(page: import("@playwright/test").Page) {
   await page.goto("/play/");
@@ -15,7 +16,11 @@ test("server result is revealed instantly for reduced motion and stays readable"
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await enterLounge(page);
-  await expect(page.getByText("44 reviewed ideas in the catalog")).toBeVisible();
+  await expect(
+    page.getByText(
+      `${DISCOVERY_ENTRIES.filter((entry) => entry.status === "published").length} reviewed ideas on this wheel`,
+    ),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: /Spin the wheel/ }).click();
   const heading = page.locator("#result-title");
@@ -38,7 +43,7 @@ test("the result is a prompt: hide it, undo it, and keep no browsing state", asy
   await page.getByRole("button", { name: /Spin the wheel/ }).click();
   const heading = page.locator("#result-title");
   await expect(heading).toBeVisible({ timeout: 5000 });
-  const title = (await heading.innerText()).trim();
+  const title = ((await heading.textContent()) ?? "").trim();
 
   await page.getByRole("button", { name: "Not tonight" }).click();
   await expect(heading).toBeHidden();
@@ -81,6 +86,8 @@ test("an empty menu is reported honestly with no invented result", async ({ page
     "Touch & closeness",
     "Senses",
     "Make-believe",
+    "Playful power",
+    "Flirting & teasing",
     "Afterglow",
   ]) {
     const chip = page.locator(".chip-no").filter({ hasText: name }).first();

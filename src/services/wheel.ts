@@ -21,6 +21,9 @@ export interface SpinRecord {
   wheelVersion: number;
   activityId: string;
   activityVersion: number;
+  /** Present only for a paired draw; null for every single-idea wheel. */
+  companionActivityId: string | null;
+  companionActivityVersion: number | null;
   catalogRevision: string;
   createdAt: number;
   expiresAt: number;
@@ -46,7 +49,19 @@ interface SegmentRow {
 interface CategoryRow {
   id: string;
   title: string;
+  blurb: string;
   required_opt_in: number;
+}
+
+interface WheelRow {
+  id: string;
+  version: number;
+  title: string;
+  selection_policy: string;
+  tagline: string;
+  description: string;
+  draw_mode: string;
+  shortlist_size: number;
 }
 
 interface SpinRow {
@@ -57,6 +72,8 @@ interface SpinRow {
   wheel_version: number;
   activity_id: string;
   activity_version: number;
+  companion_activity_id: string | null;
+  companion_activity_version: number | null;
   catalog_revision: string;
   created_at: number;
   expires_at: number;
@@ -132,6 +149,78 @@ export async function requestDigest(secret: unknown, canonical: string): Promise
   return hex(await crypto.subtle.sign("HMAC", key, message));
 }
 
+export interface PublicActivitySet {
+  activities: Activity[];
+  categories: WheelCategory[];
+}
+
+export interface PublicWheelSummary {
+  id: string;
+  version: number;
+  title: string;
+  tagline: string;
+  description: string;
+  drawMode: "single" | "pair" | "category";
+  shortlistSize: number;
+  segmentCount: number;
+}
+
+/**
+ * Every served activity comes through this row mapper. A malformed, unpublished or
+ * non-public row is dropped instead of being served, and category opt-in requirements
+ * are merged from D1 rather than trusted from metadata.
+ */
+function toActivity(row: SegmentRow): Activity | null {
+  if (row.status !== "published") return null;
+  let metadata: Metadata;
+  try {
+    metadata = JSON.parse(row.metadata_json) as Metadata;
+  } catch {
+    return null;
+  }
+  const requiredOptIns = [
+    ...new Set([
+      ...(metadata.requiredOptIns ?? []),
+      ...(row.required_opt_in === 1 ? [row.category_id] : []),
+    ]),
+  ].sort();
+  const parsed = activitySchema.safeParse({
+    id: row.activity_id,
+    version: row.activity_version,
+    title: row.title,
+    description: row.description,
+    category: row.category_id,
+    tags: metadata.tags ?? [],
+    heat: row.heat,
+    experimentation: row.experimentation,
+    energy: row.energy,
+    durationMinutes: row.duration_minutes,
+    environments: metadata.environments ?? [],
+    supplies: metadata.supplies ?? [],
+    preparation: metadata.preparation ?? [],
+    accessibility: metadata.accessibility ?? [],
+    safetyFlags: metadata.safetyFlags ?? [],
+    requiredOptIns,
+    incompatibleWith: metadata.incompatibleWith ?? [],
+    phases: metadata.phases ?? [],
+    status: row.status,
+    packId: row.pack_id ?? null,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+async function loadCategories(db: D1Database): Promise<WheelCategory[]> {
+  const { results } = await db
+    .prepare("SELECT id, title, blurb, required_opt_in FROM categories ORDER BY id")
+    .all<CategoryRow>();
+  return results.map((row) => ({
+    id: row.id,
+    title: row.title,
+    blurb: row.blurb ?? "",
+    requiredOptIn: row.required_opt_in === 1,
+  }));
+}
+
 /** Supplier labels are editorial; which supplies are offered comes from served rows. */
 export function suppliesFor(activities: readonly Activity[]): WheelSupply[] {
   const used = new Set(activities.flatMap((activity) => activity.supplies));
@@ -142,101 +231,127 @@ export function suppliesFor(activities: readonly Activity[]): WheelSupply[] {
 }
 
 /**
- * Loads one published wheel and its exact activity versions. A malformed or
- * non-published row is dropped rather than served: fail closed, never "best effort"
- * with unreviewed content.
+ * Loads public activities either for one wheel (its exact segment list) or for the whole
+ * public catalog (Date Night Machine and cookbook). Both paths apply the same
+ * `access_tier = 'public_preview'` and `status = 'published'` gate in SQL, so a
+ * restricted row cannot be reached through a different query.
  */
+export async function loadPublicActivities(
+  db: D1Database,
+  wheel?: { id: string; version: number },
+): Promise<PublicActivitySet> {
+  const categories = await loadCategories(db);
+  const rows = wheel
+    ? await db
+        .prepare(
+          `SELECT ws.activity_id, ws.activity_version, ws.weight, av.title, av.description,
+                  av.category_id, av.heat, av.experimentation, av.energy, av.duration_minutes,
+                  av.metadata_json, av.status, av.pack_id, c.required_opt_in
+           FROM wheel_segments ws
+           JOIN activity_versions av
+             ON av.activity_id = ws.activity_id AND av.version = ws.activity_version
+           JOIN categories c ON c.id = av.category_id
+           WHERE ws.wheel_id = ? AND ws.wheel_version = ? AND av.access_tier = 'public_preview'
+           ORDER BY ws.activity_id`,
+        )
+        .bind(wheel.id, wheel.version)
+        .all<SegmentRow>()
+    : await db
+        .prepare(
+          `SELECT av.activity_id, av.version AS activity_version, 1 AS weight, av.title,
+                  av.description, av.category_id, av.heat, av.experimentation, av.energy,
+                  av.duration_minutes, av.metadata_json, av.status, av.pack_id, c.required_opt_in
+           FROM activity_versions av
+           JOIN categories c ON c.id = av.category_id
+           WHERE av.access_tier = 'public_preview' AND av.status = 'published'
+           ORDER BY av.activity_id`,
+        )
+        .all<SegmentRow>();
+  const activities: Activity[] = [];
+  for (const row of rows.results) {
+    const activity = toActivity(row);
+    if (activity) activities.push(activity);
+  }
+  return { activities, categories };
+}
+
+/** Public wheel directory. Draft and restricted wheels are excluded in SQL. */
+export async function listPublicWheels(db: D1Database): Promise<PublicWheelSummary[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT w.id, w.version, w.title, w.tagline, w.description, w.draw_mode, w.shortlist_size,
+              (SELECT count(*) FROM wheel_segments ws
+                 JOIN activity_versions av
+                   ON av.activity_id = ws.activity_id AND av.version = ws.activity_version
+                 WHERE ws.wheel_id = w.id AND ws.wheel_version = w.version
+                   AND av.access_tier = 'public_preview' AND av.status = 'published')
+                AS segment_count
+       FROM wheels w
+       WHERE w.status = 'published'
+         AND w.version = (SELECT max(version) FROM wheels w2
+                            WHERE w2.id = w.id AND w2.status = 'published')
+       ORDER BY CASE w.id
+         WHEN 'misfortune' THEN 0
+         WHEN 'foreplay' THEN 1
+         WHEN 'double-trouble' THEN 2
+         WHEN 'dealers-choice' THEN 3
+         ELSE 9 END, w.id`,
+    )
+    .all<{
+      id: string;
+      version: number;
+      title: string;
+      tagline: string;
+      description: string;
+      draw_mode: string;
+      shortlist_size: number;
+      segment_count: number;
+    }>();
+  return results
+    .filter((row) => row.segment_count > 0)
+    .map((row) => ({
+      id: row.id,
+      version: row.version,
+      title: row.title,
+      tagline: row.tagline,
+      description: row.description,
+      drawMode: row.draw_mode === "pair" || row.draw_mode === "category" ? row.draw_mode : "single",
+      shortlistSize: row.shortlist_size,
+      segmentCount: row.segment_count,
+    }));
+}
+
 export async function loadWheelCatalog(
   db: D1Database,
   wheelId: string,
 ): Promise<WheelCatalog | null> {
   const wheel = await db
     .prepare(
-      `SELECT id, version, title, selection_policy FROM wheels
-       WHERE id = ? AND status = 'published' ORDER BY version DESC LIMIT 1`,
+      `SELECT id, version, title, selection_policy, tagline, description, draw_mode, shortlist_size
+       FROM wheels WHERE id = ? AND status = 'published' ORDER BY version DESC LIMIT 1`,
     )
     .bind(wheelId)
-    .first<{ id: string; version: number; title: string; selection_policy: string }>();
+    .first<WheelRow>();
   if (!wheel) return null;
 
-  const { results: categoryRows } = await db
-    .prepare("SELECT id, title, required_opt_in FROM categories ORDER BY id")
-    .all<CategoryRow>();
-  const categories: WheelCategory[] = categoryRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    blurb: "",
-    requiredOptIn: row.required_opt_in === 1,
-  }));
-
-  const { results: rows } = await db
-    .prepare(
-      `SELECT ws.activity_id, ws.activity_version, ws.weight, av.title, av.description,
-              av.category_id, av.heat, av.experimentation, av.energy, av.duration_minutes,
-              av.metadata_json, av.status, av.pack_id, c.required_opt_in
-       FROM wheel_segments ws
-       JOIN activity_versions av
-         ON av.activity_id = ws.activity_id AND av.version = ws.activity_version
-       JOIN categories c ON c.id = av.category_id
-       WHERE ws.wheel_id = ? AND ws.wheel_version = ? AND av.access_tier = 'public_preview'
-       ORDER BY ws.activity_id`,
-    )
-    .bind(wheel.id, wheel.version)
-    .all<SegmentRow>();
-
-  const activities: Activity[] = [];
+  const { activities, categories } = await loadPublicActivities(db, {
+    id: wheel.id,
+    version: wheel.version,
+  });
   const weights: Record<string, number> = {};
-  for (const row of rows) {
-    if (row.status !== "published") continue;
-    let metadata: Metadata;
-    try {
-      metadata = JSON.parse(row.metadata_json) as Metadata;
-    } catch {
-      continue;
-    }
-    // Category opt-in requirements are derived from D1, never from client input, so a
-    // data-entry omission in metadata cannot silently offer a consent-prefixed idea.
-    const requiredOptIns = [
-      ...new Set([
-        ...(metadata.requiredOptIns ?? []),
-        ...(row.required_opt_in === 1 ? [row.category_id] : []),
-      ]),
-    ].sort();
-    const parsed = activitySchema.safeParse({
-      id: row.activity_id,
-      version: row.activity_version,
-      title: row.title,
-      description: row.description,
-      category: row.category_id,
-      tags: metadata.tags ?? [],
-      heat: row.heat,
-      experimentation: row.experimentation,
-      energy: row.energy,
-      durationMinutes: row.duration_minutes,
-      environments: metadata.environments ?? [],
-      supplies: metadata.supplies ?? [],
-      preparation: metadata.preparation ?? [],
-      accessibility: metadata.accessibility ?? [],
-      safetyFlags: metadata.safetyFlags ?? [],
-      requiredOptIns,
-      incompatibleWith: metadata.incompatibleWith ?? [],
-      phases: metadata.phases ?? [],
-      status: row.status,
-      packId: row.pack_id ?? null,
-    });
-    if (parsed.success) {
-      activities.push(parsed.data);
-      weights[row.activity_id] = row.weight;
-    }
-  }
+  for (const activity of activities) weights[activity.id] = 1;
+
   return {
     wheel: {
       id: wheel.id,
       version: wheel.version,
       title: wheel.title,
-      tagline: "Spin responsibly. Misbehave consensually.",
+      tagline: wheel.tagline,
+      description: wheel.description || "",
       selectionPolicy: wheel.selection_policy === "weighted" ? "weighted" : "uniform",
-      shortlistSize: 8,
+      drawMode:
+        wheel.draw_mode === "pair" || wheel.draw_mode === "category" ? wheel.draw_mode : "single",
+      shortlistSize: wheel.shortlist_size,
     },
     activities,
     weights,
@@ -368,6 +483,8 @@ function toSpinRecord(row: SpinRow): SpinRecord {
     wheelVersion: row.wheel_version,
     activityId: row.activity_id,
     activityVersion: row.activity_version,
+    companionActivityId: row.companion_activity_id ?? null,
+    companionActivityVersion: row.companion_activity_version ?? null,
     catalogRevision: row.catalog_revision,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
@@ -392,8 +509,9 @@ export async function insertSpin(
     .prepare(
       `INSERT OR IGNORE INTO guest_spins
          (id, session_id, request_digest, wheel_id, wheel_version, activity_id,
-          activity_version, catalog_revision, created_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          activity_version, companion_activity_id, companion_activity_version,
+          catalog_revision, created_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       record.id,
@@ -403,6 +521,8 @@ export async function insertSpin(
       record.wheelVersion,
       record.activityId,
       record.activityVersion,
+      record.companionActivityId,
+      record.companionActivityVersion,
       record.catalogRevision,
       now,
       record.expiresAt,

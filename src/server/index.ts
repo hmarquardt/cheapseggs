@@ -5,6 +5,8 @@ import { requestDigestKeyed } from "../services/wheel";
 import { accountRoutes } from "./account";
 import type { Bindings } from "./bindings";
 import { contentRoutes } from "./content";
+import { dateNightRoutes } from "./date-night";
+import { recipeRoutes } from "./recipes";
 import { wheelRoutes } from "./wheel";
 
 export const app = new Hono<{ Bindings: Bindings }>();
@@ -122,6 +124,8 @@ app.get("/api/v1/catalog/preview", async (c) => {
 });
 app.route("/", accountRoutes);
 app.route("/api/v1", contentRoutes);
+app.route("/api/v1", dateNightRoutes);
+app.route("/api/v1", recipeRoutes);
 app.all("/api/auth/*", (c) => c.json({ error: "auth_not_configured" }, 503));
 app.all("/api/payments/*", (c) => c.json({ error: "payments_not_configured" }, 503));
 app.route("/api/v1", wheelRoutes);

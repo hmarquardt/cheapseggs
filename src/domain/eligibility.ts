@@ -1,4 +1,4 @@
-import type { Activity, EligibilityContext } from "./catalog";
+import type { Activity, EligibilityContext } from "./catalog.ts";
 
 /** Pure policy, with no random behavior. Never send rejection reasons to a partner. */
 export function eligibleActivities(

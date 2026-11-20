@@ -1,4 +1,6 @@
 import type { Activity } from "../../domain/catalog";
+import { RESTRICTED_ENTRIES } from "../restricted/catalog.ts";
+import { DISCOVERY_EXPANSION } from "./expansion.ts";
 
 /**
  * Editorial source of truth for the guest Discovery catalog.
@@ -34,6 +36,12 @@ export const DISCOVERY_CATEGORIES: readonly DiscoveryCategory[] = [
     id: "connection",
     title: "Connection",
     blurb: "Attention, conversation and appreciation.",
+    requiredOptIn: false,
+  },
+  {
+    id: "tease",
+    title: "Flirting & teasing",
+    blurb: "Slow burns, held looks and unbearable anticipation. Non-explicit by design.",
     requiredOptIn: false,
   },
   {
@@ -73,6 +81,12 @@ export const DISCOVERY_CATEGORIES: readonly DiscoveryCategory[] = [
     requiredOptIn: true,
   },
   {
+    id: "power",
+    title: "Playful power",
+    blurb: "Agree-who-leads games with a stop word, no gear and no contact. Off until you ask.",
+    requiredOptIn: true,
+  },
+  {
     id: "reconnect",
     title: "Afterglow",
     blurb: "Winding down and looking after each other afterwards.",
@@ -95,6 +109,10 @@ export const DISCOVERY_SUPPLIES: readonly SupplyDefinition[] = [
   { id: "lotion", title: "Lotion or oil" },
   { id: "scarf", title: "A scarf or sleep mask" },
   { id: "mirror", title: "A mirror" },
+  { id: "scent", title: "Something scented" },
+  { id: "silk", title: "Something silky" },
+  { id: "towel", title: "A towel" },
+  { id: "cards", title: "A deck of cards" },
 ] as const;
 
 export interface DiscoveryWheel {
@@ -102,19 +120,15 @@ export interface DiscoveryWheel {
   version: number;
   title: string;
   tagline: string;
+  description: string;
   selectionPolicy: "uniform" | "weighted";
+  /** How the server draws: one idea, a compatible pair, or the house's category. */
+  drawMode: "single" | "pair" | "category";
   /** Wheel wedges drawn from the eligible pool. The winner is always included. */
   shortlistSize: number;
+  /** Published segment ids, compiled in source order. Never trusted from a client. */
+  segmentIds: readonly string[];
 }
-
-export const DISCOVERY_WHEEL: DiscoveryWheel = {
-  id: "misfortune",
-  version: 1,
-  title: "The Wheel of Misfortune",
-  tagline: "Spin responsibly. Misbehave consensually.",
-  selectionPolicy: "uniform",
-  shortlistSize: 8,
-};
 
 /** A published editorial entry. `publicPreview` marks the three landing samples. */
 export type DiscoveryEntry = Omit<Activity, "packId"> & {
@@ -122,7 +136,7 @@ export type DiscoveryEntry = Omit<Activity, "packId"> & {
   publicPreview?: boolean;
 };
 
-export const DISCOVERY_ENTRIES: readonly DiscoveryEntry[] = [
+const CORE_ENTRIES: readonly DiscoveryEntry[] = [
   // ---------------------------------------------------------------- connection
   {
     id: "uninterrupted-attention",
@@ -1243,5 +1257,89 @@ export const DISCOVERY_ENTRIES: readonly DiscoveryEntry[] = [
     incompatibleWith: [],
     phases: ["main"],
     status: "draft",
+  },
+];
+
+/**
+ * One editorial source, three publication states:
+ *  - CORE_ENTRIES: the reviewed M2 set (44 published + 6 unreviewed heat-3 drafts)
+ *  - DISCOVERY_EXPANSION: the M3B non-explicit expansion (65 published, heat 0-2)
+ *  - RESTRICTED_ENTRIES: restricted adult drafts (heat 3, never served)
+ */
+export const DISCOVERY_ENTRIES: readonly DiscoveryEntry[] = [
+  ...CORE_ENTRIES,
+  ...DISCOVERY_EXPANSION,
+  ...RESTRICTED_ENTRIES,
+];
+
+const PUBLISHED = DISCOVERY_ENTRIES.filter((entry) => entry.status === "published");
+
+/** Deterministic, deduplicated segment list for one wheel blueprint. */
+function segmentsWhere(select: (entry: DiscoveryEntry) => boolean): readonly string[] {
+  return [...new Set(PUBLISHED.filter(select).map((entry) => entry.id))].sort();
+}
+
+/**
+ * The public wheel collection. Every wheel draws only from published,
+ * `public_preview` segments; the draw mode changes how the server picks, never what
+ * it is allowed to offer. Blueprints are compiled into `wheel_segments` by
+ * `scripts/build-seeds.ts`, so a mode can never widen a visitor's boundaries.
+ */
+export const DISCOVERY_WHEELS: readonly DiscoveryWheel[] = [
+  {
+    id: "misfortune",
+    version: 1,
+    title: "The Wheel of Misfortune",
+    tagline: "Spin responsibly. Misbehave consensually.",
+    description: "The full menu. Every reviewed non-explicit idea in the house.",
+    selectionPolicy: "uniform",
+    drawMode: "single",
+    shortlistSize: 8,
+    segmentIds: segmentsWhere(() => true),
+  },
+  {
+    id: "foreplay",
+    version: 1,
+    title: "The Wheel of Foreplay",
+    tagline: "All the anticipation, none of the rush.",
+    description:
+      "A slower wheel: flirting, teasing, atmosphere and warm-ups. Best with a mild or medium ceiling.",
+    selectionPolicy: "uniform",
+    drawMode: "single",
+    shortlistSize: 8,
+    segmentIds: segmentsWhere(
+      (entry) =>
+        entry.heat <= 1 &&
+        entry.category !== "reconnect" &&
+        entry.phases.some((phase) => phase === "setup" || phase === "warm-up"),
+    ),
+  },
+  {
+    id: "double-trouble",
+    version: 1,
+    title: "Double Trouble",
+    tagline: "Two ideas, one evening, no leftovers.",
+    description:
+      "The house deals a compatible pair that fits your time budget, so the evening has a first act and a second.",
+    selectionPolicy: "uniform",
+    drawMode: "pair",
+    shortlistSize: 8,
+    segmentIds: segmentsWhere(
+      (entry) =>
+        entry.phases.some((phase) => phase === "main" || phase === "warm-up") &&
+        entry.category !== "reconnect",
+    ),
+  },
+  {
+    id: "dealers-choice",
+    version: 1,
+    title: "Dealer's Choice",
+    tagline: "You keep the boundaries. The house picks the category.",
+    description:
+      "One category is chosen for you from the ideas that already fit your rules, then the wheel draws inside it.",
+    selectionPolicy: "uniform",
+    drawMode: "category",
+    shortlistSize: 8,
+    segmentIds: segmentsWhere(() => true),
   },
 ];

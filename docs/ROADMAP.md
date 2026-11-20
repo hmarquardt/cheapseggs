@@ -2,6 +2,14 @@
 
 ## Current delivery
 
+**M3B — Make the experience worth visiting: implemented 2026-11-20.** The non-explicit catalog
+grew from 44 to 109 published ideas (plus 17 unpublished heat-3 drafts for review); four wheels
+(Misfortune, Foreplay, Double Trouble, Dealer's Choice) share one eligibility engine; the Date Night
+Machine composes, rerolls, replaces and re-times coherent evenings from 12 versioned recipes; and the
+Romance Cookbook exposes the same recipes as a browsable collection. Restricted content stays
+unreachable, Habanero stays locked and no plan is stored. Contracts and limits are in
+[Experiences](EXPERIENCES.md); release evidence follows the production deployment.
+
 **M2 — first playable Wheel of Misfortune (guest Discovery Mode): implemented and released
 2026-11-20.** A curated, versioned, non-explicit 44-entry catalog (plus 6 unreviewed heat-3
 drafts that can never be served), server-side eligibility filtering, cryptographically

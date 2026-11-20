@@ -1,7 +1,15 @@
 import { render } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { EmptyHint, SpinResponse, WheelConfigDto } from "../domain/wheel";
-import { ApiError, createGuestToken, loadWheel, requestSpin, resetGuest } from "./api";
+import {
+  ApiError,
+  createGuestToken,
+  loadWheel,
+  loadWheels,
+  requestSpin,
+  resetGuest,
+  type WheelSummary,
+} from "./api";
 import { playLanding, startSpinTicks, stopSpinTicks } from "./sound";
 import { MenuForm } from "./wheel/MenuForm";
 import { ResultCard } from "./wheel/ResultCard";
@@ -20,8 +28,10 @@ const EMPTY_CONFIG: WheelConfigDto = {
     version: 1,
     title: "The Wheel of Misfortune",
     tagline: "",
+    description: "",
     shortlistSize: 8,
     selectionPolicy: "uniform",
+    drawMode: "single",
   },
   catalogRevision: "unavailable",
   counts: { total: 0, byHeat: {} },
@@ -29,6 +39,19 @@ const EMPTY_CONFIG: WheelConfigDto = {
   supplies: [],
   options: { heat: [], experimentation: [], energy: [], duration: [], environment: [] },
   disclosure: { promptNotConsent: true, note: "" },
+};
+
+const MARQUEE: Record<string, { script: string; name: string }> = {
+  misfortune: { script: "The Wheel of", name: "MISFORTUNE" },
+  foreplay: { script: "The Wheel of", name: "FOREPLAY" },
+  "double-trouble": { script: "Double", name: "TROUBLE" },
+  "dealers-choice": { script: "Dealer's", name: "CHOICE" },
+};
+
+const SPIN_LABEL: Record<string, string> = {
+  pair: "Deal a pair",
+  category: "Ask the house",
+  single: "Spin the wheel",
 };
 
 function messageFor(code: string): string {
@@ -58,6 +81,8 @@ function useReducedMotion(): boolean {
 function Lounge() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [checked, setChecked] = useState(false);
+  const [wheels, setWheels] = useState<WheelSummary[]>([]);
+  const [wheelId, setWheelId] = useState("misfortune");
   const [config, setConfig] = useState<WheelConfigDto | null>(null);
   const [configError, setConfigError] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -76,7 +101,22 @@ function Lounge() {
 
   useEffect(() => {
     let cancelled = false;
-    loadWheel()
+    loadWheels()
+      .then((loaded) => {
+        if (!cancelled) setWheels(loaded);
+      })
+      .catch(() => {
+        // The picker is a nicety; the flagship wheel still loads on its own.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setConfigError(false);
+    loadWheel(wheelId)
       .then((loaded) => {
         if (!cancelled) setConfig(loaded);
       })
@@ -86,14 +126,13 @@ function Lounge() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [wheelId]);
 
   useEffect(() => {
-    if (!entryFocus.current) {
+    if (acknowledged && !entryFocus.current) {
       entryFocus.current = true;
-      return;
+      document.getElementById("stage-title")?.focus();
     }
-    document.getElementById(acknowledged ? "stage-title" : "entry-title")?.focus();
   }, [acknowledged]);
 
   useEffect(() => {
@@ -104,6 +143,19 @@ function Lounge() {
     setSettings((current) => ({ ...current, ...patch }));
   }, []);
 
+  const chooseWheel = useCallback(
+    (nextId: string) => {
+      if (nextId === wheelId) return;
+      setWheelId(nextId);
+      setResponse(null);
+      setPhase("idle");
+      setError(null);
+      pendingKey.current = null;
+      document.getElementById("stage-title")?.focus();
+    },
+    [wheelId],
+  );
+
   const runSpin = useCallback(
     async (next: Settings = settings) => {
       if (phase === "spinning" || !config) return;
@@ -113,7 +165,7 @@ function Lounge() {
       const idempotencyKey = pendingKey.current ?? crypto.randomUUID();
       pendingKey.current = idempotencyKey;
       try {
-        const payload = await requestSpin(token.current, toSpinBody(next, idempotencyKey));
+        const payload = await requestSpin(token.current, wheelId, toSpinBody(next, idempotencyKey));
         if (payload.status === "empty") {
           stopSpinTicks();
           pendingKey.current = null;
@@ -137,16 +189,24 @@ function Lounge() {
         setPhase("idle");
       }
     },
-    [config, phase, reduceMotion, settings],
+    [config, phase, reduceMotion, settings, wheelId],
   );
 
   const hideResult = useCallback(() => {
     if (response?.status !== "result") return;
     const { id, title } = response.result;
-    setHiddenTitles((current) => ({ ...current, [id]: title }));
+    const partner = response.partner;
+    const hide = [id, ...(partner ? [partner.id] : [])];
+    setHiddenTitles((current) => {
+      const next = { ...current, [id]: title };
+      if (partner) next[partner.id] = partner.title;
+      return next;
+    });
     // Newest exclusions win; the list stays inside the server's bound.
     update({
-      excludedActivities: [...settings.excludedActivities, id].slice(-MAX_EXCLUSIONS),
+      excludedActivities: [...settings.excludedActivities, ...hide]
+        .filter((entry, index, list) => list.indexOf(entry) === index)
+        .slice(-MAX_EXCLUSIONS),
     });
     setResponse(null);
     setPhase("idle");
@@ -196,6 +256,8 @@ function Lounge() {
   const empty = response?.status === "empty" ? response : null;
   const shortlist = result?.shortlist ?? [];
   const selectedIndex = result?.selectedIndex ?? -1;
+  const marquee = MARQUEE[wheelId] ?? { script: "The Wheel of", name: "MISFORTUNE" };
+  const drawMode = config?.wheel.drawMode ?? "single";
 
   return (
     <>
@@ -206,6 +268,11 @@ function Lounge() {
         <a class="wordmark" href="/">
           cheap<span>seggs</span>
         </a>
+        <nav aria-label="Experiences">
+          <a href="/date-night/">Date Night Machine</a>
+          <a href="/recipes/">Cookbook</a>
+          <a href="/privacy/">Privacy</a>
+        </nav>
         <a
           href="/account/"
           onClick={async (event) => {
@@ -214,9 +281,8 @@ function Lounge() {
             window.location.assign("/account/");
           }}
         >
-          Account (clears guest session)
+          Your account
         </a>
-        <a href="/privacy/">Privacy & discretion</a>
       </header>
       <main class="wrap lounge" id="main">
         <p class="eyebrow">NO RESERVATION REQUIRED.</p>
@@ -261,22 +327,39 @@ function Lounge() {
           <>
             <section class="mode-strip" aria-labelledby="modes-title">
               <h2 id="modes-title" class="section-heading">
-                The house offers three modes.
+                Four wheels. One set of boundaries.
               </h2>
-              <div class="mode-options">
-                <button type="button" class="mode-button is-selected" aria-pressed="true">
-                  Discovery
-                </button>
-                <button type="button" class="mode-button" aria-pressed="false" disabled>
-                  Mutual Mischief
-                </button>
-                <button type="button" class="mode-button" aria-pressed="false" disabled>
-                  Solo Exploration
-                </button>
-              </div>
-              <p class="small-note">
-                Discovery is live and needs no account. Mutual Mischief (independent YES/YES ideas
-                only) and Solo are planned and not available yet.
+              <fieldset class="mode-options">
+                <legend class="visually-hidden">Choose a wheel</legend>
+                {(wheels.length > 0
+                  ? wheels
+                  : [
+                      {
+                        id: wheelId,
+                        title: config?.wheel.title ?? "The Wheel",
+                        tagline: "",
+                        description: "",
+                        drawMode,
+                        segmentCount: 0,
+                        version: 1,
+                      },
+                    ]
+                ).map((wheel) => (
+                  <button
+                    key={wheel.id}
+                    type="button"
+                    class={`mode-button ${wheel.id === wheelId ? "is-selected" : ""}`}
+                    aria-pressed={wheel.id === wheelId}
+                    onClick={() => chooseWheel(wheel.id)}
+                  >
+                    {wheel.title}
+                  </button>
+                ))}
+              </fieldset>
+              <p class="small-note" aria-live="polite">
+                {wheels.find((wheel) => wheel.id === wheelId)?.description ??
+                  "Discovery is live and needs no account."}{" "}
+                Mutual Mischief (independent YES/YES ideas only) and Solo remain planned.
               </p>
             </section>
 
@@ -284,9 +367,9 @@ function Lounge() {
               <section class="machine" aria-labelledby="stage-title">
                 <div class="marquee">
                   <p class="marquee-title">TONIGHT&rsquo;S ENTERTAINMENT</p>
-                  <p class="neon-script">The Wheel of</p>
+                  <p class="neon-script">{marquee.script}</p>
                   <h2 id="stage-title" class="marquee-name" tabIndex={-1}>
-                    MISFORTUNE
+                    {marquee.name}
                   </h2>
                   <Wheel
                     segments={shortlist}
@@ -295,41 +378,34 @@ function Lounge() {
                     spinning={phase === "spinning"}
                     spinCount={spinCount}
                   />
-                  <p class="marquee-tagline">
-                    Spin responsibly.
-                    <br />
-                    <em>Misbehave consensually.</em>
-                  </p>
+                  <p class="marquee-tagline">{config?.wheel.tagline ?? ""}</p>
                   <button
-                    class="button spin-button"
+                    class="button button-wide"
                     type="button"
                     onClick={() => void runSpin()}
                     disabled={phase === "spinning" || !config}
                   >
-                    {phase === "spinning" ? "Spinning…" : "Spin the wheel"}
+                    {phase === "spinning" ? "Drawing…" : (SPIN_LABEL[drawMode] ?? "Spin the wheel")}
                   </button>
-                  <div class="machine-footer">
-                    <button
-                      type="button"
-                      class="text-button"
-                      aria-pressed={settings.sound}
-                      onClick={() => update({ sound: !settings.sound })}
-                    >
-                      Sound: {settings.sound ? "on" : "off"}
-                    </button>
-                    <span class="machine-hint">
-                      {config
-                        ? `${config.counts.total} reviewed ideas in the catalog`
-                        : configError
-                          ? "The catalog is unavailable right now."
-                          : "Loading the catalog…"}
+                  <div class="stage-meta">
+                    <span class="preview-ticket">
+                      {config?.counts.total ?? 0} reviewed ideas on this wheel
                     </span>
+                    <label class="switch-row switch-inline">
+                      <input
+                        type="checkbox"
+                        checked={settings.sound}
+                        onChange={(event) => update({ sound: event.currentTarget.checked })}
+                      />
+                      <span>Sound</span>
+                    </label>
                   </div>
                 </div>
                 <p class="stage-note" role="status" aria-live="polite">
                   {phase === "spinning"
-                    ? "Spinning for a suggestion…"
+                    ? "Drawing from the ideas that fit your house rules…"
                     : (error ??
+                      config?.disclosure.note ??
                       "A spin supplies an idea to discuss. It is never permission to do it.")}
                 </p>
               </section>
@@ -337,6 +413,9 @@ function Lounge() {
                 {phase === "result" && result && (
                   <ResultCard
                     result={result.result}
+                    partner={result.partner}
+                    dealerCategory={result.dealerCategory}
+                    combinedMinutes={result.combinedMinutes}
                     replayed={result.replayed}
                     eligibleCount={result.eligibleCount}
                     headingRef={(element) => {
@@ -401,12 +480,20 @@ function Lounge() {
               }}
               onClearSession={() => void clearSession()}
             />
+            {configError && (
+              <p class="small-note" role="status">
+                The catalog could not be loaded. The wheel will not invent an answer; try again in a
+                moment.
+              </p>
+            )}
           </>
         )}
       </main>
       <footer class="wrap site-footer">
         <p>Curiosity is optional. Boundaries are mandatory.</p>
         <a href="/">Back to CheapSeggs</a>
+        <a href="/date-night/">Plan a whole evening</a>
+        <a href="/recipes/">Read the cookbook</a>
       </footer>
     </>
   );

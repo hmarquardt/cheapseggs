@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { Activity, EligibilityContext } from "./catalog";
-import { eligibleActivities } from "./eligibility";
-import { randomBelow, selectWeighted } from "./random";
+import type { Activity, EligibilityContext } from "./catalog.ts";
+import { compatiblePair, eligibleActivities } from "./eligibility.ts";
+import { randomBelow, selectWeighted } from "./random.ts";
 
 /** A discovery prompt is never action approval; this marker is part of every result. */
 export const DISCOVERY_PROMPT = "discovery-prompt-not-consent";
@@ -44,6 +44,15 @@ export const ENVIRONMENT_OPTIONS = [
   { key: "private-other", label: "Somewhere else private" },
 ] as const;
 
+/** Public wheel ids. Every one must also exist as a published row in D1. */
+export const PUBLIC_WHEEL_IDS = [
+  "misfortune",
+  "foreplay",
+  "double-trouble",
+  "dealers-choice",
+] as const;
+export type PublicWheelId = (typeof PUBLIC_WHEEL_IDS)[number];
+
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const GUEST_TOKEN = /^[0-9a-f]{64}$/;
 
@@ -52,7 +61,7 @@ export const GUEST_TOKEN = /^[0-9a-f]{64}$/;
  * mild heat, no category opt-ins, no supplies, classic range.
  */
 export const spinRequestSchema = z.strictObject({
-  wheelId: z.literal("misfortune").default("misfortune"),
+  wheelId: z.enum(PUBLIC_WHEEL_IDS).default("misfortune"),
   heat: z.enum(["mild", "medium", "spicy", "habanero"]).default("mild"),
   experimentation: z.enum(["classic", "curious", "adventurous"]).default("classic"),
   energy: z.enum(["low", "moderate", "high"]).default("moderate"),
@@ -87,7 +96,9 @@ export interface WheelCatalog {
     version: number;
     title: string;
     tagline: string;
+    description: string;
     selectionPolicy: "uniform" | "weighted";
+    drawMode: "single" | "pair" | "category";
     shortlistSize: number;
   };
   /** Published wheel segments only, with category opt-ins merged in. */
@@ -248,6 +259,72 @@ export function canonicalRequest(request: SpinRequest): string {
     excludedActivities: sorted(request.excludedActivities),
     repeatPolicy: request.repeatPolicy,
   });
+}
+
+export interface PairPlan extends SpinPlan {
+  companion: Activity;
+}
+
+/**
+ * Double Trouble: draw a winner, then a compatible partner that still fits the same
+ * time budget. Incompatibilities, supplies and every ceiling still apply to both.
+ * Returns null rather than falling back to a single idea, because "two" is the mode.
+ */
+export function planPairSpin(
+  pool: readonly WeightedActivity[],
+  availableMinutes: number,
+  options: { shortlistSize: number; source?: Uint32Source },
+): PairPlan | null {
+  let remaining = [...pool];
+  for (let attempt = 0; attempt < Math.min(remaining.length, 24); attempt++) {
+    const winner = selectWeighted(
+      remaining.map((entry) => ({ value: entry.activity, weight: entry.weight })),
+      options.source,
+    );
+    if (!winner) return null;
+    const companions = remaining.filter(
+      (entry) =>
+        compatiblePair(winner, entry.activity) &&
+        winner.durationMinutes + entry.activity.durationMinutes <= availableMinutes,
+    );
+    if (companions.length > 0) {
+      const companion = selectWeighted(
+        companions.map((entry) => ({ value: entry.activity, weight: entry.weight })),
+        options.source,
+      );
+      if (!companion) return null;
+      return {
+        ...shortlistAround(
+          remaining.map((entry) => entry.activity),
+          winner,
+          options,
+        ),
+        companion,
+      };
+    }
+    // No partner for this winner under these boundaries; try another winner.
+    remaining = remaining.filter((entry) => entry.activity.id !== winner.id);
+  }
+  return null;
+}
+
+export interface DealerChoice {
+  category: string;
+  activities: Activity[];
+}
+
+/** Dealer's Choice: the house picks a category that is already inside the boundaries. */
+export function dealerChoice(
+  pool: readonly Activity[],
+  source?: Uint32Source,
+): DealerChoice | null {
+  const categories = [...new Set(pool.map((activity) => activity.category))].sort();
+  if (categories.length === 0) return null;
+  const picked = categories[randomBelow(categories.length, source)] as string;
+  return {
+    category: picked,
+    activities: pool.filter((activity) => activity.category === picked),
+  };
 }
 
 export type CeilingKind = "heat" | "experimentation" | "energy" | "duration";
@@ -459,8 +536,10 @@ export interface WheelConfigDto {
     version: number;
     title: string;
     tagline: string;
+    description: string;
     shortlistSize: number;
     selectionPolicy: string;
+    drawMode: string;
   };
   catalogRevision: string;
   counts: { total: number; byHeat: Record<string, number> };
@@ -483,12 +562,23 @@ export type SpinResponse =
       replayed: boolean;
       guest: GuestSessionDto;
       catalogRevision: string;
-      wheel: { id: string; version: number; title: string; tagline: string };
+      wheel: {
+        id: string;
+        version: number;
+        title: string;
+        tagline: string;
+        drawMode: string;
+      };
       shortlist: SpinSegmentDto[];
       selectedIndex: number;
       eligibleCount: number;
       repeatPolicy: SpinRequest["repeatPolicy"];
       result: SpinResultDto;
+      /** Double Trouble only: the compatible second idea. */
+      partner: SpinResultDto | null;
+      /** Dealer's Choice only: the category the house selected from the eligible pool. */
+      dealerCategory: { id: string; title: string } | null;
+      combinedMinutes: number | null;
     }
   | {
       status: "empty";

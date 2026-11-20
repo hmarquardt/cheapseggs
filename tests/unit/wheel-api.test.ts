@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DISCOVERY_CATEGORIES, DISCOVERY_ENTRIES } from "../../src/content/discovery/catalog";
 import { eligibleActivities } from "../../src/domain/eligibility";
 import { canonicalRequest, spinRequestSchema, toEligibilityContext } from "../../src/domain/wheel";
 import { app } from "../../src/server";
@@ -85,6 +86,9 @@ async function result(database: TestDatabase, body: Record<string, unknown> = {}
   return payload;
 }
 
+const PUBLISHED_TOTAL = DISCOVERY_ENTRIES.filter((entry) => entry.status === "published").length;
+const OPT_IN_TOTAL = DISCOVERY_CATEGORIES.filter((category) => category.requiredOptIn).length;
+
 describe("wheel configuration endpoint", () => {
   it("publishes bounded catalog metadata without personal context", async () => {
     const database = createTestDatabase();
@@ -98,13 +102,13 @@ describe("wheel configuration endpoint", () => {
       categories: { requiredOptIn: boolean }[];
       disclosure: { promptNotConsent: boolean };
     };
-    expect(body.counts.total).toBe(44);
+    expect(body.counts.total).toBe(PUBLISHED_TOTAL);
     // Content gate: unreviewed heat-3 material must never be published or counted.
     expect(body.counts.byHeat["3"]).toBe(0);
     expect(body.options.heat.find((option) => option.key === "habanero")).toMatchObject({
       available: false,
     });
-    expect(body.categories.filter((category) => category.requiredOptIn)).toHaveLength(3);
+    expect(body.categories.filter((category) => category.requiredOptIn)).toHaveLength(OPT_IN_TOTAL);
     expect(body.disclosure.promptNotConsent).toBe(true);
     expect(JSON.stringify(body)).not.toContain("guest");
   });
@@ -129,7 +133,7 @@ describe("server-side eligibility", () => {
   it("honours heat, opt-in and exclusion boundaries from the D1 catalog", async () => {
     const database = createTestDatabase();
     const catalog = await loadWheelCatalog(database.db, "misfortune");
-    expect(catalog?.activities).toHaveLength(44);
+    expect(catalog?.activities).toHaveLength(PUBLISHED_TOTAL);
     const { eligibleActivities } = await import("../../src/domain/eligibility");
     const { spinRequestSchema, toEligibilityContext } = await import("../../src/domain/wheel");
     const eligible = (overrides: Record<string, unknown>) =>
@@ -297,6 +301,8 @@ describe("authoritative spins", () => {
         "touch",
         "senses",
         "fantasy",
+        "power",
+        "tease",
         "reconnect",
       ],
     });
@@ -363,6 +369,8 @@ describe("authoritative spins", () => {
         "activity_id",
         "activity_version",
         "catalog_revision",
+        "companion_activity_id",
+        "companion_activity_version",
         "created_at",
         "expires_at",
         "id",
@@ -799,25 +807,21 @@ describe("content and consent integrity", () => {
   it("never widens the pool to avoid a repeat", async () => {
     const database = createTestDatabase();
     const catalog = await loadWheelCatalog(database.db, "misfortune");
-    const permissive = spinRequestSchema.parse({
+    // A deliberately tiny legal pool: everything else becomes a hard no. The capped
+    // list stays inside the server's 50-exclusion bound, so this tests policy, not input.
+    const narrow = spinRequestSchema.parse({
       idempotencyKey: key(),
-      heat: "spicy",
-      experimentation: "adventurous",
-      energy: "high",
-      duration: "all-evening",
+      heat: "mild",
+      experimentation: "classic",
+      energy: "low",
+      duration: "quickie",
       environment: "home",
-      supplies: (catalog?.supplies ?? []).map((supply) => supply.id),
-      optIns: (catalog?.categories ?? [])
-        .filter((category) => category.requiredOptIn)
-        .map((category) => category.id),
     });
-    const pool = eligibleActivities(catalog?.activities ?? [], toEligibilityContext(permissive));
+    const pool = eligibleActivities(catalog?.activities ?? [], toEligibilityContext(narrow));
     expect(pool.length).toBeGreaterThan(0);
+    expect(pool.length).toBeLessThanOrEqual(50);
     const keep = pool[0]?.id ?? "";
-    const exclusions = (catalog?.activities ?? [])
-      .map((activity) => activity.id)
-      .filter((id) => id !== keep);
-    expect(exclusions.length).toBeLessThanOrEqual(50);
+    const exclusions = pool.map((activity) => activity.id).filter((id) => id !== keep);
 
     const token = guestToken();
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -825,12 +829,10 @@ describe("content and consent integrity", () => {
         database,
         {
           idempotencyKey: key(),
-          heat: "spicy",
-          experimentation: "adventurous",
-          energy: "high",
-          duration: "all-evening",
-          supplies: permissive.supplies,
-          optIns: permissive.optIns,
+          heat: "mild",
+          experimentation: "classic",
+          energy: "low",
+          duration: "quickie",
           excludedActivities: exclusions,
         },
         { "x-cheapseggs-guest": token },

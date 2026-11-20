@@ -2,6 +2,9 @@ import type { SpinResultDto } from "../../domain/wheel";
 
 interface Props {
   result: SpinResultDto;
+  partner: SpinResultDto | null;
+  dealerCategory: { id: string; title: string } | null;
+  combinedMinutes: number | null;
   replayed: boolean;
   eligibleCount: number;
   onSpinAgain: () => void;
@@ -9,8 +12,60 @@ interface Props {
   headingRef: (element: HTMLElement | null) => void;
 }
 
+function IdeaBody({ idea }: { idea: SpinResultDto }) {
+  return (
+    <>
+      <p class="result-description">{idea.description}</p>
+      <ul class="meta-chips" aria-label="Result details">
+        <li class="meta-chip">{idea.categoryTitle}</li>
+        <li class="meta-chip">Heat: {idea.heatLabel}</li>
+        <li class="meta-chip">{idea.durationMinutes} min</li>
+        <li class="meta-chip">
+          {idea.energy === 0 ? "Low energy" : idea.energy === 1 ? "Some energy" : "High energy"}
+        </li>
+      </ul>
+      {(idea.supplies.length > 0 || idea.preparation.length > 0) && (
+        <section class="result-section">
+          <h3>Before you start</h3>
+          <ul>
+            {[
+              ...idea.preparation,
+              ...idea.supplies.map((supply) => `You will need: ${supply}`),
+            ].map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {idea.accessibility.length > 0 && (
+        <section class="result-section">
+          <h3>Ways to adapt it</h3>
+          <ul>
+            {idea.accessibility.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {idea.safetyFlags.length > 0 && (
+        <section class="result-section result-safety">
+          <h3>House rules</h3>
+          <ul>
+            {idea.safetyFlags.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+}
+
 export function ResultCard({
   result,
+  partner,
+  dealerCategory,
+  combinedMinutes,
   replayed,
   eligibleCount,
   onSpinAgain,
@@ -19,55 +74,35 @@ export function ResultCard({
 }: Props) {
   return (
     <article class="result-card" aria-labelledby="result-title">
-      <p class="eyebrow">TONIGHT&rsquo;S SUGGESTION</p>
+      <p class="eyebrow">{partner ? "DOUBLE TROUBLE · TONIGHT'S PAIR" : "TONIGHT'S SUGGESTION"}</p>
+      {dealerCategory && (
+        <p class="dealer-note">
+          The house chose <strong>{dealerCategory.title}</strong> from the ideas that already fit
+          your rules.
+        </p>
+      )}
       <h2 id="result-title" tabIndex={-1} ref={headingRef}>
         {result.title}
+        {partner ? ` + ${partner.title}` : ""}
       </h2>
-      <p class="result-description">{result.description}</p>
+      <div class={partner ? "pair-grid" : ""}>
+        <div class="pair-card">
+          {partner && <h3 class="pair-label">First course</h3>}
+          <IdeaBody idea={result} />
+        </div>
+        {partner && (
+          <div class="pair-card">
+            <h3 class="pair-label">Second course</h3>
+            <IdeaBody idea={partner} />
+          </div>
+        )}
+      </div>
 
-      <ul class="meta-chips" aria-label="Result details">
-        <li class="meta-chip">{result.categoryTitle}</li>
-        <li class="meta-chip">Heat: {result.heatLabel}</li>
-        <li class="meta-chip">{result.durationMinutes} min</li>
-        <li class="meta-chip">
-          {result.energy === 0 ? "Low energy" : result.energy === 1 ? "Some energy" : "High energy"}
-        </li>
-      </ul>
-
-      {(result.supplies.length > 0 || result.preparation.length > 0) && (
-        <section class="result-section">
-          <h3>Before you start</h3>
-          <ul>
-            {[
-              ...result.preparation,
-              ...result.supplies.map((supply) => `You will need: ${supply}`),
-            ].map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {result.accessibility.length > 0 && (
-        <section class="result-section">
-          <h3>Ways to adapt it</h3>
-          <ul>
-            {result.accessibility.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {result.safetyFlags.length > 0 && (
-        <section class="result-section result-safety">
-          <h3>House rules</h3>
-          <ul>
-            {result.safetyFlags.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
+      {combinedMinutes !== null && (
+        <p class="small-note">
+          {combinedMinutes} minutes for both ideas, inside tonight&rsquo;s budget. Each one is
+          optional on its own.
+        </p>
       )}
 
       <p class="result-disclaimer">
@@ -77,7 +112,7 @@ export function ResultCard({
 
       <div class="result-actions">
         <button type="button" class="button" onClick={onSpinAgain}>
-          Spin again
+          {partner ? "Deal another pair" : "Spin again"}
         </button>
         <button type="button" class="button button-outline" onClick={onHide}>
           Not tonight

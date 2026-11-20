@@ -57,7 +57,10 @@ const wheelConfig = (await wheelResponse.json()) as {
   disclosure: { promptNotConsent: boolean };
   categories: { requiredOptIn: boolean }[];
 };
-assert.ok(wheelConfig.counts.total >= 40 && wheelConfig.counts.total <= 60, "catalog size");
+assert.ok(
+  wheelConfig.counts.total >= 100 && wheelConfig.counts.total <= 130,
+  "non-explicit catalog size",
+);
 // Content gate: unreviewed heat-3 material must stay unpublished in production.
 assert.equal(wheelConfig.counts.byHeat["3"], 0);
 assert.equal(
@@ -65,7 +68,7 @@ assert.equal(
   false,
 );
 assert.equal(wheelConfig.disclosure.promptNotConsent, true);
-assert.equal(wheelConfig.categories.filter((category) => category.requiredOptIn).length, 3);
+assert.equal(wheelConfig.categories.filter((category) => category.requiredOptIn).length, 4);
 
 const guest = randomBytes(32).toString("hex");
 const spinBody = { wheelId: "misfortune", idempotencyKey: crypto.randomUUID(), heat: "mild" };
@@ -113,6 +116,119 @@ const reset = await get("/api/v1/guest", {
 assert.equal(reset.status, 204);
 evidence.push({ check: "/api/v1/spins", result: spin.result.id });
 evidence.push({ check: "guest-wheel", result: "result/replay/conflict/reset pass" });
+
+// ------------------------------------------------- M3B modes, plans and cookbook (live)
+const wheelList = (await (await get("/api/v1/wheels")).json()) as {
+  wheels: { id: string; drawMode: string; segmentCount: number }[];
+};
+assert.deepEqual(
+  wheelList.wheels.map((wheel) => wheel.id),
+  ["misfortune", "foreplay", "double-trouble", "dealers-choice"],
+);
+assert.ok(wheelList.wheels.every((wheel) => wheel.segmentCount > 0));
+const foreplay = (await (await get("/api/v1/wheels/foreplay")).json()) as {
+  counts: { byHeat: Record<string, number> };
+};
+assert.equal(foreplay.counts.byHeat["2"], 0, "foreplay stays below spicy");
+evidence.push({ check: "/api/v1/wheels", result: wheelList.wheels.map((wheel) => wheel.id) });
+
+const pairGuest = randomBytes(32).toString("hex");
+const pairSpin = (await (
+  await get("/api/v1/spins", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-cheapseggs-guest": pairGuest },
+    body: JSON.stringify({
+      wheelId: "double-trouble",
+      idempotencyKey: crypto.randomUUID(),
+      heat: "medium",
+      duration: "all-evening",
+    }),
+  })
+).json()) as {
+  status: string;
+  result: { id: string; durationMinutes: number };
+  partner: { id: string; durationMinutes: number } | null;
+  combinedMinutes: number | null;
+};
+assert.equal(pairSpin.status, "result");
+assert.ok(pairSpin.partner, "double trouble must deal a pair");
+assert.notEqual(pairSpin.partner?.id, pairSpin.result.id);
+assert.ok((pairSpin.combinedMinutes ?? 0) <= 240);
+
+const dealerSpin = (await (
+  await get("/api/v1/spins", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-cheapseggs-guest": pairGuest },
+    body: JSON.stringify({
+      wheelId: "dealers-choice",
+      idempotencyKey: crypto.randomUUID(),
+      heat: "medium",
+    }),
+  })
+).json()) as {
+  status: string;
+  result: { category: string };
+  dealerCategory: { id: string } | null;
+};
+assert.equal(dealerSpin.status, "result");
+assert.equal(dealerSpin.dealerCategory?.id, dealerSpin.result.category);
+evidence.push({ check: "double-trouble/dealers-choice", result: "pair and category draws" });
+
+const recipeList = (await (await get("/api/v1/recipes")).json()) as {
+  recipes: { id: string }[];
+  catalogRevision: string;
+};
+assert.equal(recipeList.recipes.length, 12, "published cookbook size");
+assert.match(recipeList.catalogRevision, /^cookbook\+[0-9a-f]{16}$/);
+assert.equal((await get("/api/v1/recipes/slow-cooker")).status, 200);
+assert.equal((await get("/api/v1/recipes/draft-silk-and-ice")).status, 404);
+const dateNightConfig = (await (await get("/api/v1/date-night")).json()) as {
+  recipes: { id: string }[];
+  options: { heat: { key: string; available: boolean }[] };
+};
+assert.equal(dateNightConfig.recipes.length, 12);
+assert.equal(
+  dateNightConfig.options.heat.find((option) => option.key === "habanero")?.available,
+  false,
+  "habanero stays locked in production",
+);
+const planResponse = await get("/api/v1/date-night/plans", {
+  method: "POST",
+  headers: { "content-type": "application/json", "x-cheapseggs-guest": pairGuest },
+  body: JSON.stringify({
+    config: {
+      mood: "romantic",
+      heat: "mild",
+      experimentation: "classic",
+      energy: "moderate",
+      duration: "hour",
+      environment: "home",
+      supplies: [],
+      optIns: [],
+      excludedCategories: [],
+      excludedActivities: [],
+    },
+  }),
+});
+assert.equal(planResponse.status, 200);
+const plan = (await planResponse.json()) as {
+  mode?: string;
+  status?: string;
+  steps?: { slot: string; activity: { id: string; heat: number } }[];
+  plannedMinutes?: number;
+  budgetMinutes?: number;
+};
+assert.equal(plan.status, undefined, "a plan must be served for the default evening");
+assert.equal(plan.mode, "date-night-plan-not-consent");
+assert.ok((plan.steps?.length ?? 0) >= 3);
+assert.ok((plan.plannedMinutes ?? 0) <= (plan.budgetMinutes ?? 0));
+assert.ok((plan.steps ?? []).every((step) => step.activity.heat <= 0));
+for (const body of [recipeList, dateNightConfig, plan, pairSpin]) {
+  assert.ok(!JSON.stringify(body).includes("draft-"), "restricted drafts must never be served");
+}
+evidence.push({ check: "restricted-content", result: "no draft material in public responses" });
+evidence.push({ check: "date-night plan", result: `${plan.steps?.length} steps` });
+
 const agents = {
   browser: "Mozilla/5.0 (compatible; CheapSeggsReleaseCheck/1.0)",
   facebook: "facebookexternalhit/1.1",
@@ -214,7 +330,7 @@ assert.equal(
   ).status,
   503,
 );
-assert.equal((await get("/api/v1/content/draft-blindfold-trust/1")).status, 404);
+assert.equal((await get("/api/v1/content/draft-silk-and-ice/1")).status, 404);
 evidence.push({
   check:
     "account UX, available email registration with required adulthood, no unauthenticated account access, closed age/restricted content",

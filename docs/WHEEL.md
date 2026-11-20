@@ -1,8 +1,15 @@
 # Wheel of Misfortune — M2 guest Discovery Mode
 
-Status: **implemented and released** (milestone M2, 2026-11-20). Discovery Mode only. This
-document is the module specification, the consent/privacy contract and the record of what is
-deliberately still missing.
+Status: **implemented and released** (milestone M2, 2026-11-20; extended by M3B). Discovery Mode only.
+
+> **M3B update (2026-11-20):** this document describes the original single wheel and its M2 contract,
+> which still holds. M3B expanded the served catalog to 109 non-explicit entries and added three
+> further modes (Foreplay, Double Trouble, Dealer's Choice) on the same eligibility engine. The tuple,
+> persistence and consent rules below apply unchanged; mode-specific behaviour, recipes and tier
+> isolation are documented in [Experiences](EXPERIENCES.md). Any count of “44” below refers to the
+> historical M2 release. This
+> document is the module specification, the consent/privacy contract and the record of what is
+> deliberately still missing.
 
 ## Scope of this milestone
 

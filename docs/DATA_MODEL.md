@@ -8,6 +8,36 @@ Activity versions now have an independent access_tier, default restricted. Only 
 
 `migrations/0001_foundation.sql` is executable foundation SQL; no production database has been created. `seeds/local.sql` is a small idempotent public fixture set. Epoch timestamps are integer UTC seconds, external IDs opaque text, money integer minor units plus ISO currency, versions positive integers, JSON validated. Tables are SQLite STRICT with foreign keys, checks and explicit indexes. Currency format is basic length only; a server allowlist is still required.
 
+## M3B extensions (2026-11-20, `0005_experiences.sql`)
+
+- `wheels` gained `tagline`, `description`, `draw_mode` (`single`/`pair`/`category`) and
+  `shortlist_size`; four published wheels are seeded. Segment rows remain immutable per wheel version.
+- `guest_spins` gained nullable `companion_activity_id` / `companion_activity_version` for paired draws,
+  with triggers that require both-or-neither and require the companion to be a published public
+  version. No heat, opt-in or exclusion values are added.
+- `categories` gained a display `blurb` column; `required_opt_in` remains the consent gate.
+- The foundation's planned `recipe_templates` / `recipe_steps` tables are now used: presentation and
+  gate fields live in validated `metadata_json`, plus `access_tier`/`public_preview`; steps gained
+  `slot`, `optional`, `guidance`, `alternatives_json` and `max_minutes`. Recipe rows are immutable per
+  version and reference exact public activity versions.
+- No plan, preference or generated recipe is stored. The client holds the plan and the server
+  re-validates it per request.
+
+## M3B extensions (2026-11-20, `0005_experiences.sql`)
+
+- `wheels` gained `tagline`, `description`, `draw_mode` (`single`/`pair`/`category`) and
+  `shortlist_size`; four published wheels are seeded. Segment rows remain immutable per wheel version.
+- `guest_spins` gained nullable `companion_activity_id` / `companion_activity_version` for paired draws,
+  with triggers that require both-or-neither and require the companion to be a published public
+  version. No heat, opt-in or exclusion values are added.
+- `categories` gained a display `blurb` column; `required_opt_in` remains the consent gate.
+- The foundation's planned `recipe_templates` / `recipe_steps` tables are now used: presentation and
+  gate fields live in validated `metadata_json`, plus `access_tier`/`public_preview`; steps gained
+  `slot`, `optional`, `guidance`, `alternatives_json` and `max_minutes`. Recipe rows are immutable per
+  version and reference exact public activity versions.
+- No plan, preference or generated recipe is stored. The client holds the plan and the server
+  re-validates it per request.
+
 ## Implemented entity groups
 
 | Group / tables                            | Ownership, constraints and access                                                                                                                                                                                                                                                                                                                             |

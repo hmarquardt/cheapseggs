@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { DISCOVERY_ENTRIES } from "../../src/content/discovery/catalog";
 
 test("public shell, adult acknowledgement and accessibility", async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -12,7 +13,7 @@ test("public shell, adult acknowledgement and accessibility", async ({ page }, t
   await page.screenshot({ path: testInfo.outputPath("landing.png"), fullPage: true });
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
-  await page.getByRole("link", { name: "Step inside" }).click();
+  await page.getByRole("link", { name: "Spin a wheel" }).click();
 
   const enter = page.getByRole("button", { name: "Enter the lounge" });
   await expect(enter).toBeDisabled();
@@ -20,7 +21,7 @@ test("public shell, adult acknowledgement and accessibility", async ({ page }, t
   await enter.click();
   await expect(page.locator("#stage-title")).toBeFocused();
   await expect(page.getByRole("heading", { name: "MISFORTUNE" })).toBeVisible();
-  await expect(page.getByText("It is never permission to do it.")).toBeVisible();
+  await expect(page.getByText(/It is never permission/)).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("lounge.png"), fullPage: true });
 
@@ -49,7 +50,9 @@ test("worker readiness, wheel configuration, private endpoints and headers", asy
   expect(wheel.status()).toBe(200);
   expect(wheel.headers()["cache-control"]).toBe("no-store");
   const config = await wheel.json();
-  expect(config.counts.total).toBe(44);
+  expect(config.counts.total).toBe(
+    DISCOVERY_ENTRIES.filter((entry) => entry.status === "published").length,
+  );
   expect(config.counts.byHeat["3"]).toBe(0);
   expect(config.disclosure.promptNotConsent).toBe(true);
 
