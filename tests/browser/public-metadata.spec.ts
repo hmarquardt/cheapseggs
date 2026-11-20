@@ -14,6 +14,7 @@ test("all indexable pages deliver complete metadata identically to social crawle
     ]) {
       const response = await request.get(path, { headers: { "User-Agent": userAgent } });
       expect(response.status(), `${path} ${userAgent}`).toBe(200);
+      expect(response.headers()["x-cheapseggs-revision"]).toBe("local");
       const html = await response.text();
       const head = /<head>([\s\S]*?)<\/head>/.exec(html)?.[1] ?? "";
       expect(head).toContain(`rel="canonical" href="${SITE_ORIGIN}${path}"`);

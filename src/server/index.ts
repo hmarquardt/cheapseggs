@@ -66,6 +66,11 @@ app.use("*", async (c, next) => {
     if (url.pathname === "/play") return c.redirect(`/play/${url.search}`, 308);
   }
   await next();
+  // Raw asset Responses replace prepared headers; attach release identity after dispatch.
+  c.header("X-CheapSeggs-Revision", c.env?.DEPLOY_REVISION ?? "local");
+  if (/^\/(api|play|account|auth|invite|assessments|results)(\/|$)/.test(url.pathname)) {
+    c.header("Cache-Control", "no-store");
+  }
   if (c.res.status >= 400 || !(PUBLIC_PATHS as readonly string[]).includes(url.pathname)) {
     c.header("X-Robots-Tag", "noindex, nofollow");
   }

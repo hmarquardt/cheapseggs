@@ -10,21 +10,21 @@ Local config: `wrangler.jsonc`, local Worker name, all-zero local D1 ID, no live
 
 ## Resource inventory
 
-| Resource                         | Name / identifier                                            | Status / purpose                                                                                          |
-| -------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| Cloudflare account               | b1aa310aa0a1638d72b8b086a21e557c                             | Existing; Workers Standard usage model already configured                                                 |
-| Zone                             | cheapseggs.com / 3f54cc8fa4f93859b8b38c818ccfd015            | Existing active Free Website zone; existing nameservers retained                                          |
-| Worker                           | cheapseggs                                                   | New production target, one modular monolith plus static assets                                            |
-| Custom domains                   | cheapseggs.com; www.cheapseggs.com                           | Worker custom domains; Worker redirects www to apex with 308                                              |
-| Production D1                    | cheapseggs-production / ef9ff0b0-97d5-428b-81df-cd02fe342bb8 | Created 2026-11-20; only public editorial samples are seeded                                              |
-| Local D1                         | cheapseggs-local / all-zero config ID                        | Local emulator only, not a Cloudflare production resource                                                 |
-| R2                               | None created                                                 | Media remains Workers static assets; future private/premium media bucket deferred by ADR                  |
-| CFLab site                       | cheapseggs / as_v3ng10kbDYMLWnFWOsf52W                       | Registered in existing analytics service, seven-day raw retention                                         |
-| Extra Workers/KV/DO/queues/crons | None                                                         | Not needed for safe public release                                                                        |
-| GitHub production environment    | production, main branch only                                 | Created for release job                                                                                   |
-| GitHub repository variable       | CLOUDFLARE_DEPLOY_ENABLED=true                               | Explicit new-project release gate; not the gate of another repository                                     |
-| GitHub secret                    | CLOUDFLARE_API_TOKEN                                         | Durable token required; never substitute a copied short-lived OAuth token                                 |
-| Search Console                   | sc-domain:cheapseggs.com                                     | Added to existing service account, currently siteUnverifiedUser; verification blocked as described in SEO |
+| Resource                         | Name / identifier                                            | Status / purpose                                                                                            |
+| -------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Cloudflare account               | b1aa310aa0a1638d72b8b086a21e557c                             | Existing; Workers Standard usage model already configured                                                   |
+| Zone                             | cheapseggs.com / 3f54cc8fa4f93859b8b38c818ccfd015            | Existing active Free Website zone; existing nameservers retained                                            |
+| Worker                           | cheapseggs                                                   | New production target, one modular monolith plus static assets                                              |
+| Custom domains                   | cheapseggs.com; www.cheapseggs.com                           | Worker custom domains; Worker redirects www to apex with 308                                                |
+| Production D1                    | cheapseggs-production / ef9ff0b0-97d5-428b-81df-cd02fe342bb8 | Created 2026-11-20; only public editorial samples are seeded                                                |
+| Local D1                         | cheapseggs-local / all-zero config ID                        | Local emulator only, not a Cloudflare production resource                                                   |
+| R2                               | None created                                                 | Media remains Workers static assets; future private/premium media bucket deferred by ADR                    |
+| CFLab site                       | cheapseggs / as_v3ng10kbDYMLWnFWOsf52W                       | Registered in existing analytics service, seven-day raw retention                                           |
+| Extra Workers/KV/DO/queues/crons | None                                                         | Not needed for safe public release                                                                          |
+| GitHub production environment    | production, main branch only                                 | Created for release job                                                                                     |
+| GitHub repository variable       | CLOUDFLARE_DEPLOY_ENABLED=true                               | Explicit new-project release gate; not the gate of another repository                                       |
+| GitHub secret                    | CLOUDFLARE_API_TOKEN                                         | Configured 2026-11-20; scoped cheapseggs-github-deploy token, expires 2027-11-21 05:59:59 UTC               |
+| Search Console                   | sc-domain:cheapseggs.com                                     | Verified domain; intended human owner plus existing service account, sitemap submitted (pending processing) |
 
 Account/zone/database/site IDs are configuration, not secrets. Do not include authentication token values, Google JSON/private key, passwords or browser sessions in this inventory. No R2 bucket is needed to host public social cards. Creating one for an unused binding would add operational surface without a requirement.
 
@@ -40,7 +40,9 @@ The production verify step checks version/commit, apex HTTPS, www redirect, publ
 
 Set repository secret `CLOUDFLARE_API_TOKEN` through GitHub's encrypted secrets UI or `gh secret set` over stdin. Required practical scopes: Workers Scripts Edit and D1 Edit on this account, Zone Read and Workers Routes Edit scoped to `cheapseggs.com`. If DNS verification automation is added, DNS Edit must be scoped to this zone too. Do not use a global API key, unrelated R2/backup token, copied browser session, a generated admin session, or a short-lived local Wrangler access token. The existing local OAuth session is not a durable GitHub credential and cannot create API tokens with its current permissions.
 
-Do not print or commit secrets. Tokens are read only by the main deployment job, not by PR validation or the public app. The production environment restricts deployments to `main`. A missing secret is a real failed release gate; do not report it as a successful/skipped production deployment.
+The actual deployment token was created through the authenticated owner dashboard and piped directly into GitHub Secrets without displaying or committing its value. It has Workers Scripts Edit + D1 Edit for this account and Workers Routes Edit + Zone Read only for the CheapSeggs zone; no DNS write or token-management scope. Rotate before 2027-11-21 05:59:59 UTC. Cloudflare account-scoped permissions can affect other Workers/D1s in that account; the release script also checks the exact repository, branch, account and DB targets.
+
+Do not print or commit secrets. Tokens are read only by the main deployment job, not by PR validation or the public app. The production environment restricts deployments to `main`. Main requires the `validate` status context and disallows force pushes/deletion. Owner/admin bypass remains available for direct early-project commits; deployment still independently requires validation of the same SHA. A missing secret is a real failed release gate; do not report it as a successful/skipped production deployment.
 
 ### Initial bootstrap exception
 

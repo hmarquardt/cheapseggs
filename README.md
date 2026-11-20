@@ -69,7 +69,7 @@ src/domain/       validated content types, eligibility, randomness
 src/services/     identity and entitlement boundaries
 src/server/       Worker HTTP adapter; no intimate-data endpoints
 migrations/      ordered SQL, domain/commerce foundation
-seeds/           safe local fixtures only
+seeds/           three safe fixtures, explicit local/production files
 scripts/         fresh-database verification
 tests/unit/      consent, entitlement, randomness, API boundaries
 tests/browser/   local runtime/UI/accessibility smoke tests

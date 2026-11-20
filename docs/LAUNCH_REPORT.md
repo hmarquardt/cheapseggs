@@ -1,6 +1,6 @@
 # Public launch evidence
 
-Status before initial release: production code is complete locally; exact GitHub validation, deployed identity and independent live evidence will be recorded after release. The safe application is public explanations and a non-explicit design preview, not working games or private account features.
+Initial public deployment is live from GitHub; final release verification is in progress. The safe application is public explanations and a non-explicit design preview, not working games or private account features.
 
 ## Implemented scope
 
@@ -8,15 +8,15 @@ Nine indexable explanation/policy pages, six original 1200×630 social cards wit
 
 ## External integration state
 
-CFLab site `as_v3ng10kbDYMLWnFWOsf52W` is legitimately registered with apex/www domains and seven-day raw retention. The consent adapter is implemented; real event ingestion/report readback must be verified after deployment. No authenticated reporting UI session is available, and none will be fabricated.
+CFLab site `as_v3ng10kbDYMLWnFWOsf52W` is legitimately registered with apex/www domains and seven-day raw retention. The consent adapter is implemented; a real production opt-in browser pageview returned 204 and was read back in reporting storage with no session/referrer/campaign/props fields. No authenticated reporting UI session is available, and none will be fabricated.
 
-Search Console domain property `sc-domain:cheapseggs.com` was added through existing service-account access (204), but is `siteUnverifiedUser`. Site Verification API is disabled in Google project 184307746744; current Cloudflare OAuth cannot edit DNS. Verification and authorized sitemap submission remain external gates. Public sitemap delivery can be tested independently of Google ownership.
+Search Console domain property `sc-domain:cheapseggs.com` is DNS-verified. The existing service account and intended human owner have ownership; API readback is `siteOwner`. Site Verification API was enabled in existing project 184307746744. Google accepted the sitemap submission (204), and readback is pending processing with zero initial warnings/errors. No indexing outcome is claimed.
 
-GitHub validation/release workflow and production main-only environment are configured. Durable repository secret `CLOUDFLARE_API_TOKEN` remains required for automatic deployment. Existing local Cloudflare OAuth may be used for the documented initial bootstrap after the exact pushed SHA passes GitHub validation; that does not certify automated deployment.
+GitHub validation/release workflow and production main-only environment are configured. Durable repository secret `CLOUDFLARE_API_TOKEN` is configured with account/zone scopes documented in the runbook, expiring November 2027. Main requires validation; the production environment allows main only. No manual bootstrap deploy was used.
 
 ## Release evidence
 
-Pending initial release. Read `/api/version` and the production smoke artifact for authoritative runtime identity. See [Deployment](DEPLOYMENT.md) for full resource IDs, recovery procedure, credential scopes and initial bootstrap conditions.
+Initial GitHub release [44758973504](https://github.com/hmarquardt/cheapseggs/actions/runs/44758973504), commit `407736ce6db2528a664817dc25f43802537733a3`, passed validation and deployed, but smoke verification caught first DNS propagation and then a missing asset-response revision header. The header is corrected after asset dispatch, with browser regression coverage; final release results follow. Read `/api/version` and the production smoke artifact for authoritative runtime identity. See [Deployment](DEPLOYMENT.md) for full resource IDs, recovery procedure, credential scopes and initial bootstrap conditions.
 
 ## Remaining product gates
 
