@@ -2,7 +2,7 @@
 
 **Cheap Seggs. Priceless Memories.** Playful discovery for consenting adults, with boundaries built into the product.
 
-This repository contains the researched product architecture and **safe public preview**. GitHub [hmarquardt/cheapseggs](https://github.com/hmarquardt/cheapseggs), branch `main`, is canonical. Production target: **https://cheapseggs.com**. Public explanations and the non-explicit lounge preview are implemented; authentication, private answers, assessments, games, email delivery and payments remain disabled. [Deployment](docs/DEPLOYMENT.md) records resources, release gates and verification requirements; [launch report](docs/LAUNCH_REPORT.md) records actual deployment status.
+This repository contains the researched product architecture and **safe public preview**. GitHub [hmarquardt/cheapseggs](https://github.com/hmarquardt/cheapseggs), branch `main`, is canonical. Live production: **https://cheapseggs.com**. Public explanations and the non-explicit lounge preview are implemented; authentication, private answers, assessments, games, email delivery and payments remain disabled. [Deployment](docs/DEPLOYMENT.md) records resources, release gates and verification requirements; [launch report](docs/LAUNCH_REPORT.md) records actual deployment status.
 
 Start with the concise [decision report](docs/DECISION_REPORT.md), then use the documentation index below.
 

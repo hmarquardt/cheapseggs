@@ -14,4 +14,5 @@ Read README.md and the relevant docs before changes. This is an adults-only ente
 - Use TypeScript strict mode, bounded inputs, prepared SQL, append-only migrations and versioned catalog content. Generate authentication schemas from the selected pinned framework configuration; do not improvise session tables.
 - Use `npm run check` and the relevant local D1/browser checks. Do not deploy to test. Tests should exercise boundary behavior, authorization, revocation, and billing idempotency when implemented.
 - Update docs when changing architecture. Label hypotheses, production gates, and unsupported functionality honestly. Research date: 2026-11-19; recheck vendor policies and prices before spending or launch.
+- Production releases must use the pushed main commit, pass GitHub validation and deployment smoke, and match `/api/version` plus the Cloudflare version tag. Use the bounded per-response revision check for propagation; never weaken content/security assertions to turn a failed release green. See docs/DEPLOYMENT.md and docs/LAUNCH_REPORT.md.
 - No scheduled CI. No public content or search metadata that implies a feature is live before it works.

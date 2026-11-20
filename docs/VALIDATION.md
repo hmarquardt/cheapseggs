@@ -6,6 +6,10 @@ The original evidence below is historical. Foundation commit `984952e34e073690f2
 
 No private workflow, predictive compatibility algorithm, authentication implementation or payment integration is certified by the public release.
 
+Production delivery also passed end-to-end in [run 44761879392](https://github.com/hmarquardt/cheapseggs/actions/runs/44761879392), commit `4e69dd1b767953b0830d39f13fed0bc28e5072c9`: Node 24/Linux validation, actual local D1 migrate/seed checks, eight browser tests, remote reviewed migrations/seed, Cloudflare deployment and full production smoke. An independent live run matched the CI artifact's SHA and Worker version. The smoke includes HTTPS/apex/www/plain-HTTP redirects, assets, nine pages × four user agents, PNG dimensions, APIs/database, headers and disabled private/auth/payment boundaries. Four additional unit cases cover deployment propagation without accepting stale versions or suppressing application failures.
+
+Live integrations: one real opt-in CFLab pageview confirmed by collector 204 plus exact reporting-storage readback; dashboard UI login remains unavailable. Google domain ownership and sitemap processing verified by API and the owner's browser, with sitemap Success / nine discovered URLs. No live Facebook/X/LinkedIn card inspector, future auth/object authorization, actual game, questionnaire or payment behavior is claimed.
+
 ## Original foundation evidence
 
 Executed locally 2026-11-19 (America/Chicago) on macOS arm64, Node 26.13.0 / npm 11.20.0. Repository recommends Node 24 LTS, minimum 24.15; CI definition uses `.nvmrc`. CI has **not** run on GitHub because no changes were pushed. Node 24/Linux remains a CI verification boundary, not a claimed local result.
