@@ -55,6 +55,11 @@ if (hash !== SITE_JSON_LD_HASH) throw new Error("Structured-data CSP hash drift"
 
 /** Pages whose body is a Preact application rather than static prose. */
 const APP_PAGES: Record<string, { entry: string; fallback: string }> = {
+  "/chemistry/": {
+    entry: `${root}/chemistry/index.html`,
+    fallback:
+      "Chemistry Check needs JavaScript for the demonstration. No account is needed and nothing is saved.",
+  },
   "/date-night/": {
     entry: `${root}/date-night/index.html`,
     fallback:

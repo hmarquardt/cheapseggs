@@ -1,6 +1,21 @@
 # Chemistry Check — pre-date compatibility planning
 
-Status: **planned only**, added 2026-11-20. No assessment UI, scoring code, invitation route, database migration or billing integration is implemented. This specification extends the foundation; it does not authorize deployment or collection of real dating responses.
+Status: **Increments 1–2 implemented 2026-11-20** — a versioned 100-question bank, nested 25/50/100 manifests, a deterministic acceptance-based scorer with separate hard-requirement evaluation, and an account-free playable demonstration at `/chemistry/`. **No server persistence, invitation route, account binding, mutual release or real answer collection exists.** Production private assessment collection stays disabled until the assessment-specific security review in this document is satisfied.
+
+## Implementation status (2026-11-20)
+
+| Piece                                                                                                         | State                                       | Where                                                                                    |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Versioned base bank, 100 original non-explicit questions, eight dimensions                                    | implemented                                 | `src/content/chemistry/questions.ts`                                                     |
+| Nested 25/50/100 manifests (4/3/13-style prefix allocation, `25 ⊂ 50 ⊂ 100`)                                  | implemented, config-gated                   | `MANIFESTS`, `scripts/check-config.ts`                                                   |
+| Typed response contract (own answer, acceptance rule, importance, hard rule, disclosure, skip/not-applicable) | implemented with structural validation      | `src/domain/chemistry.ts`                                                                |
+| Acceptance-based weighted alignment, reciprocal `min()`, coverage thresholds, coarse bands                    | implemented and unit-tested                 | `evaluateCompatibility`, `buildSharedReport`                                             |
+| Separate tri-state hard-requirement evaluation, private-only suppression, joint-signal approval               | implemented and unit-tested                 | `evaluateHardConflict`                                                                   |
+| One-question-at-a-time demonstration UI, review/edit, synthetic report                                        | implemented, no persistence                 | `/chemistry/`, `src/client/chemistry/`                                                   |
+| D1 tables, invitations, encrypted envelopes, independent submissions, release approvals, withdrawal, purge    | **not implemented**                         | planned in [Data model](DATA_MODEL.md#planned-chemistry-check-entities-no-migration-yet) |
+| Real private submissions or two-person reports                                                                | **disabled by absence**, not merely flagged | no route, no table, no storage                                                           |
+
+The demonstration holds answers in component state only: no cookie, `localStorage`, `sessionStorage`, analytics event or network request carries them. The partner and sample answers are deterministic synthetic data generated in the browser. The `intimacy` dimension defaults to private-only, is marked unshared unless both people opt in, and is non-explicit.
 
 ## Purpose, scope and positioning
 

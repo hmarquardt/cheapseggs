@@ -9,6 +9,7 @@ export default defineConfig({
         home: resolve("index.html"),
         play: resolve("play/index.html"),
         account: resolve("account/index.html"),
+        chemistry: resolve("chemistry/index.html"),
         privacy: resolve("privacy/index.html"),
         "date-night": resolve("date-night/index.html"),
         recipes: resolve("recipes/index.html"),

@@ -234,3 +234,29 @@ Initial sandbox restrictions blocked Wrangler’s diagnostic-log/local-runtime a
 Documentation/instructions only: added the module specification and ADR 0005, then reconciled product, architecture, auth, privacy/security, API/data-model planning, monetization/payment/cost analysis, SEO/brand, roadmap and decision report. Researched current official OkCupid, RELATE, Prepare/Enrich and Truity offer descriptions; sources and price caveats are in [Monetization](MONETIZATION.md#chemistry-check-standalone-acquisition-and-assessment-product).
 
 Re-ran `npm run check`: lint, strict types, all **32 existing tests**, fresh SQLite migration/idempotent seed/constraint checks, Vite build and Worker **dry run** pass. These tests verify the unchanged executable foundation, **not** a Chemistry Check implementation. No new assessment tests were added for a feature that does not exist. Documentation file/heading links and duplicate headings are checked separately. Browser tests were not rerun for this documentation-only update; the earlier four-test browser evidence above remains dated to the foundation. Executable migrations, seed, handlers, frontend and OpenAPI have no Chemistry Check additions; nothing deployed or provisioned.
+
+## Chemistry Check Increments 1–2 (2026-11-20)
+
+Implemented against `ad699fd` (the M3B-audited `main`): the versioned 100-question non-explicit bank,
+nested 25/50/100 manifests, typed response/acceptance contract with structural validation, weighted
+acceptance scoring with conservative `min()` reciprocity, coverage thresholds, tri-state hard-requirement
+evaluation with private-only suppression, the coarse report serializer, and the account-free
+`/chemistry/` demonstration with review/edit and deterministic synthetic data.
+
+| Check                      | Result                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`            | exit 0 — Biome, strict TypeScript, config gates (100 unique questions, exact nested allocations, bounded choices, intimacy flags), 190 unit tests, fresh SQLite migration/idempotent seed/constraint checks, Vite + Worker dry run, auth worker                                                                                                                     |
+| `npx vitest run`           | **15 files / 190 tests passed**, including 27 new chemistry domain and demonstration tests                                                                                                                                                                                                                                                                          |
+| `npx playwright test`      | **38 passed** (19 tests × desktop + mobile), including 4 new chemistry browser checks                                                                                                                                                                                                                                                                               |
+| Chemistry browser coverage | explicit answer + acceptance rule, skip, finish-early, honest insufficient-coverage state, demonstration fill, eight category bands, intimacy unassessed by default, disclosure copy, no percentage or importance/dealbreaker terms in the shared report, focus on the question heading, reduced motion, axe (0 violations), no horizontal overflow, no page errors |
+| Privacy non-interference   | unit tests prove private-only answer content, weights and hard rules cannot change a shared report byte-for-byte, cannot raise coverage and cannot surface as `conflict_detected`                                                                                                                                                                                   |
+
+Not implemented and therefore not validated: D1 assessment tables, invitation tokens, account binding,
+encrypted envelopes, release approvals, withdrawal/purge, cross-account authorization, encryption key
+lifecycle and restore drills. **No real assessment answer, invitation or report is collected, stored or
+served.** Demonstration answers live only in component state: no network request carries them, and there
+is no browser storage or analytics event. Two-person enablement remains gated on the independent review
+described in [Chemistry Check](CHEMISTRY_CHECK.md) and is not claimed here.
+
+Approximate build addition: `dist/client/assets/chemistry-*.js` 57.45 KB raw / 18.29 KB gzip, including
+the 100-question editorial bank. The page adds no server route or D1 migration.

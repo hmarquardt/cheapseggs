@@ -115,9 +115,11 @@ Exit: a delightful actually playable wheel with validated server filtering, clea
 
 Create 6–10 reviewed phase templates referencing catalog versions. Implement context schema, supplies/prep union, summed duration, phase compatibility and bounded composition. Alternatives revalidate identically. Add guest recipe view and a small optional private save flow only if M1b complete; otherwise transient output. Record explicit bounds for quickie/all-evening and accessibility options. Test incompatible pairs, no-plan cases, withdrawn versions, insufficient prep/time and category opt-in intersections. Exit: coherent editable evenings, no unauthorized substitutions or AI-dependent eligibility.
 
-## C1 — Chemistry Check: standalone pre-date pilot (planned)
+## C1 — Chemistry Check: standalone pre-date pilot (Increments 1–2 implemented; private collection disabled)
 
 The [module specification](CHEMISTRY_CHECK.md) defines the 25/50/100-question product, eight dimensions, optional intimate expansion and independent invitation scope. Start the pilot with the free 25-question core; offer reviewed 50/100 depths after completion/disclosure testing. C1 is **after M2 and M1b**, and requires an assessment-specific privacy/crypto/deletion gate before real submissions. It can ship before couples features if those independent controls are ready.
+
+**Progress (2026-11-20):** Increments 1–2 are implemented and validated: the versioned bank, nested manifests, typed response/acceptance model, weighted reciprocal scoring, separate hard-requirement evaluation and coverage rules, plus the account-free `/chemistry/` demonstration with review/edit and a synthetic report. Increments 3–5 (D1 lifecycle, invitations, encrypted envelopes, release approvals, purge, independent review, production enablement) remain unbuilt, so no real assessment answer or invitation exists.
 
 | Backlog                | Acceptance criterion                                                                                                                                                                            |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

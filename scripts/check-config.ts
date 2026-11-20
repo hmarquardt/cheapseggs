@@ -7,6 +7,13 @@ import {
   SITE_JSON_LD,
   SITE_JSON_LD_HASH,
 } from "../src/config/site.ts";
+import {
+  CHEMISTRY_BANK_VERSION,
+  CHEMISTRY_QUESTIONS,
+  DEPTHS,
+  DIMENSIONS,
+  MANIFESTS,
+} from "../src/content/chemistry/questions.ts";
 import { PUBLIC_PAGES } from "../src/content/public-pages.ts";
 
 const local = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
@@ -54,6 +61,44 @@ for (const name of readdirSync("public/assets/social").filter((name) => name.end
   assert.equal(bytes.readUInt32BE(20), 630);
 }
 assert.equal(readdirSync("public/assets/social").filter((name) => name.endsWith(".png")).length, 6);
+
+// ------------------------------------------------------ Chemistry Check bank gates
+// Editorial invariants: a silent question loss or a broken depth nesting is a release failure.
+assert.match(CHEMISTRY_BANK_VERSION, /^chemistry-\d{4}-\d{2}-\d{2}\.v\d+$/);
+assert.equal(CHEMISTRY_QUESTIONS.length, 100);
+assert.equal(new Set(CHEMISTRY_QUESTIONS.map((question) => question.id)).size, 100);
+assert.equal(DIMENSIONS.length, 8);
+assert.deepEqual(
+  DEPTHS.map((entry) => entry.depth),
+  [25, 50, 100],
+);
+const manifestIds = (depth: 25 | 50 | 100) => new Set(MANIFESTS[depth].questions.map((q) => q.id));
+assert.equal(manifestIds(25).size, 25);
+assert.equal(manifestIds(50).size, 50);
+assert.equal(manifestIds(100).size, 100);
+for (const id of manifestIds(25))
+  assert.ok(manifestIds(50).has(id), `25 depth missing from 50: ${id}`);
+for (const id of manifestIds(50))
+  assert.ok(manifestIds(100).has(id), `50 depth missing from 100: ${id}`);
+for (const question of CHEMISTRY_QUESTIONS) {
+  assert.ok(question.choices.length >= 2, `${question.id}: at least two choices`);
+  assert.ok(question.choices.length <= 5, `${question.id}: bounded choices`);
+  assert.equal(
+    new Set(question.choices.map((choice) => choice.id)).size,
+    question.choices.length,
+    `${question.id}: duplicate choice ids`,
+  );
+  assert.ok(question.prompt.length >= 12, `${question.id}: substantive prompt`);
+  assert.equal(question.version, 1);
+}
+// The base deck is non-explicit; only the intimacy dimension carries sensitive wording.
+for (const question of CHEMISTRY_QUESTIONS) {
+  assert.equal(
+    question.intimate,
+    question.dimension === "intimacy",
+    `${question.id}: intimacy flag`,
+  );
+}
 
 // Abuse protection is configuration, so a silent removal must fail validation.
 interface RateLimitBinding {

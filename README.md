@@ -2,7 +2,7 @@
 
 **Cheap Seggs. Priceless Memories.** Playful discovery for consenting adults, with boundaries built into the product.
 
-This repository contains the researched product architecture and **safe public preview**. GitHub [hmarquardt/cheapseggs](https://github.com/hmarquardt/cheapseggs), branch `main`, is canonical. Live production: **https://cheapseggs.com**. The public preview now includes four playable wheels, a complete **Date Night Machine** and a twelve-recipe **Romance Cookbook** over a 109-entry non-explicit catalog; M3A adds independent email-code accounts, recovery, revocable sessions and account deletion. Cloudflare provides account email delivery. Independent age assurance, restricted content, private answers, assessments, partner matching, recipes and payments remain disabled. [Deployment](docs/DEPLOYMENT.md) records resources, release gates and verification requirements; [launch report](docs/LAUNCH_REPORT.md) records actual deployment status.
+This repository contains the researched product architecture and **safe public preview**. GitHub [hmarquardt/cheapseggs](https://github.com/hmarquardt/cheapseggs), branch `main`, is canonical. Live production: **https://cheapseggs.com**. The public preview now includes four playable wheels, a complete **Date Night Machine**, a twelve-recipe **Romance Cookbook** over a 109-entry non-explicit catalog, and an account-free **Chemistry Check demonstration** over a versioned 100-question bank; M3A adds independent email-code accounts, recovery, revocable sessions and account deletion. Cloudflare provides account email delivery. Independent age assurance, restricted content, private answers, real two-person assessments, partner matching, recipes persistence and payments remain disabled. [Deployment](docs/DEPLOYMENT.md) records resources, release gates and verification requirements; [launch report](docs/LAUNCH_REPORT.md) records actual deployment status.
 
 Start with the concise [decision report](docs/DECISION_REPORT.md), then use the documentation index below.
 
@@ -37,6 +37,7 @@ npm run test:e2e     # local Worker, desktop + mobile, accessibility and API smo
 ## What exists
 
 - Nine substantive public landing, feature-explanation and policy pages, with initial-HTML canonical/Open Graph/X metadata, original social artwork, sitemap and robots.
+- `/chemistry/` is a playable, account-free Chemistry Check demonstration over a versioned 100-question bank in nested 25/50/100 manifests. It implements the real acceptance-based scorer and coarse report locally: one question at a time, own answer, accepted partner answers, importance, dealbreakers, skip/not-applicable, private-only disclosure, review/edit and a synthetic mutually approved report. It never contacts a server with answers, stores nothing, shows no overall percentage, keeps intimacy unassessed by default and labels itself demonstration data. Real invitations, encrypted persistence and mutual release remain closed. See [Chemistry Check](docs/CHEMISTRY_CHECK.md).
 - `/play/` hosts four working wheels over the same 109-entry versioned non-explicit catalog: Misfortune, Foreplay, Double Trouble (a compatible pair) and Dealer's Choice (the house picks the category). Server-side eligibility, crypto-random selection, a readable list alternative, reduced-motion results, optional muted sound and a 24h guest session that stores no boundaries. The in-memory adults-only acknowledgement is **not** age verification. See [Wheel](docs/WHEEL.md) and [Experiences](docs/EXPERIENCES.md).
 - `/date-night/` composes a coherent evening from mood, heat, experimentation, energy, time, setting, supplies, opt-ins and exclusions: preparation, atmosphere, warm-up, mains, optional surprise and finale. Every step can be rerolled, replaced from a server-validated list, hidden or re-timed; nothing is stored and no boundary is relaxed. `/recipes/` browses the same twelve versioned recipes with ingredients, preparation, substitutions and safe hand-off to the machine.
 - Hono API: liveness, D1 readiness, release/Worker version identity, three deliberately public non-explicit sample records, the wheel directory and per-wheel configuration, the idempotent `POST /api/v1/spins` guest spin, explicit guest reset, the Date Night config/plan/step routes and the cookbook list/detail routes; reviewed auth/account routes are implemented; payment namespaces return 503 and other unimplemented APIs return 404. Worker-first handling applies security headers, canonical redirects and private noindex/no-store boundaries.
@@ -47,28 +48,28 @@ npm run test:e2e     # local Worker, desktop + mobile, accessibility and API smo
 
 ## Read the decisions
 
-| Document                                   | Purpose                                                                                   |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| [Product](docs/PRODUCT.md)                 | Audience, differentiation, experience rules, MVP                                          |
-| [Wheel](docs/WHEEL.md)                     | M2 discovery wheel: catalog gate, selection, guest session, accessibility                 |
-| [Experiences](docs/EXPERIENCES.md)         | M3B four wheels, Date Night Machine, cookbook and the public/restricted tier split        |
-| [Chemistry Check](docs/CHEMISTRY_CHECK.md) | Planned pre-date assessments, acceptance scoring and independent invitation/privacy scope |
-| [Brand](docs/BRAND.md)                     | Art direction, voice, tokens, component/UX specification                                  |
-| [Architecture](docs/ARCHITECTURE.md)       | Stack comparison, module boundaries, services, sequences                                  |
-| [Authentication](docs/AUTH.md)             | Framework comparison, sign-in, recovery, guest migration                                  |
-| [Privacy](docs/PRIVACY.md)                 | Matching protocol, inference limits, deletion and key ownership                           |
-| [Security](docs/SECURITY.md)               | Threat model and market/compliance gates                                                  |
-| [Data model](docs/DATA_MODEL.md)           | Schema, transactions, migrations, backup/deletion semantics                               |
-| [API](docs/API.md)                         | REST proposal and live versus proposed endpoints                                          |
-| [Monetization](docs/MONETIZATION.md)       | Competitors, ranked experiments, metrics, couple ownership                                |
-| [Payments](docs/PAYMENTS.md)               | Provider evidence, restrictions, underwriting checklist                                   |
-| [SEO](docs/SEO.md)                         | Acquisition, content IA, previews, search restrictions                                    |
-| [Analytics](docs/ANALYTICS.md)             | Actual CFLab contract, site registration, permission and minimization                     |
-| [Deployment](docs/DEPLOYMENT.md)           | Production resources, GitHub release path, rollback and external prerequisites            |
-| [Launch report](docs/LAUNCH_REPORT.md)     | Actual SHA/version, live checks and unresolved integration state                          |
-| [Costs](docs/COSTS.md)                     | Current price sources, scenarios, unit economics                                          |
-| [Roadmap](docs/ROADMAP.md)                 | Dependency-aware milestones and acceptance criteria                                       |
-| [Decisions](docs/DECISIONS/README.md)      | Accepted, provisional, and deferred decisions                                             |
+| Document                                   | Purpose                                                                                      |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| [Product](docs/PRODUCT.md)                 | Audience, differentiation, experience rules, MVP                                             |
+| [Wheel](docs/WHEEL.md)                     | M2 discovery wheel: catalog gate, selection, guest session, accessibility                    |
+| [Experiences](docs/EXPERIENCES.md)         | M3B four wheels, Date Night Machine, cookbook and the public/restricted tier split           |
+| [Chemistry Check](docs/CHEMISTRY_CHECK.md) | Pre-date assessment spec; implemented question bank/scorer/demo, private collection disabled |
+| [Brand](docs/BRAND.md)                     | Art direction, voice, tokens, component/UX specification                                     |
+| [Architecture](docs/ARCHITECTURE.md)       | Stack comparison, module boundaries, services, sequences                                     |
+| [Authentication](docs/AUTH.md)             | Framework comparison, sign-in, recovery, guest migration                                     |
+| [Privacy](docs/PRIVACY.md)                 | Matching protocol, inference limits, deletion and key ownership                              |
+| [Security](docs/SECURITY.md)               | Threat model and market/compliance gates                                                     |
+| [Data model](docs/DATA_MODEL.md)           | Schema, transactions, migrations, backup/deletion semantics                                  |
+| [API](docs/API.md)                         | REST proposal and live versus proposed endpoints                                             |
+| [Monetization](docs/MONETIZATION.md)       | Competitors, ranked experiments, metrics, couple ownership                                   |
+| [Payments](docs/PAYMENTS.md)               | Provider evidence, restrictions, underwriting checklist                                      |
+| [SEO](docs/SEO.md)                         | Acquisition, content IA, previews, search restrictions                                       |
+| [Analytics](docs/ANALYTICS.md)             | Actual CFLab contract, site registration, permission and minimization                        |
+| [Deployment](docs/DEPLOYMENT.md)           | Production resources, GitHub release path, rollback and external prerequisites               |
+| [Launch report](docs/LAUNCH_REPORT.md)     | Actual SHA/version, live checks and unresolved integration state                             |
+| [Costs](docs/COSTS.md)                     | Current price sources, scenarios, unit economics                                             |
+| [Roadmap](docs/ROADMAP.md)                 | Dependency-aware milestones and acceptance criteria                                          |
+| [Decisions](docs/DECISIONS/README.md)      | Accepted, provisional, and deferred decisions                                                |
 
 ## Layout
 

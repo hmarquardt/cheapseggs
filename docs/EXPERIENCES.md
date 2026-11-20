@@ -7,18 +7,21 @@ split and the safety rules that bind all of them. It does not restate [Wheel](WH
 
 ## What is live
 
-| Experience          | Route                                     | State                                   |
-| ------------------- | ----------------------------------------- | --------------------------------------- |
-| Wheel of Misfortune | `/play/`, `GET /api/v1/wheels/misfortune` | live, unchanged semantics               |
-| Wheel of Foreplay   | `/play/` (mode tab)                       | live, narrower non-explicit segment set |
-| Double Trouble      | `/play/` (mode tab)                       | live, compatible pair within one budget |
-| Dealer's Choice     | `/play/` (mode tab)                       | live, house picks the category          |
-| Date Night Machine  | `/date-night/`, `GET /api/v1/date-night`  | live                                    |
-| Romance Cookbook    | `/recipes/`, `GET /api/v1/recipes`        | live, 12 recipes                        |
+| Experience           | Route                                     | State                                     |
+| -------------------- | ----------------------------------------- | ----------------------------------------- |
+| Wheel of Misfortune  | `/play/`, `GET /api/v1/wheels/misfortune` | live, unchanged semantics                 |
+| Wheel of Foreplay    | `/play/` (mode tab)                       | live, narrower non-explicit segment set   |
+| Double Trouble       | `/play/` (mode tab)                       | live, compatible pair within one budget   |
+| Dealer's Choice      | `/play/` (mode tab)                       | live, house picks the category            |
+| Date Night Machine   | `/date-night/`, `GET /api/v1/date-night`  | live                                      |
+| Romance Cookbook     | `/recipes/`, `GET /api/v1/recipes`        | live, 12 recipes                          |
+| Chemistry Check demo | `/chemistry/`                             | live, client-only synthetic demonstration |
 
-No authentication is required for any of these. They are public, non-explicit discovery content at
-`access_tier = 'public_preview'`. Partner matching, Chemistry Check, purchases and verified-adult
-content are **not** live.
+No authentication is required for any of these. The discovery experiences are public, non-explicit
+content at `access_tier = 'public_preview'`. Chemistry Check's demonstration ships a versioned
+100-question bank and the real scorer, but keeps every answer in browser memory and pairs the visitor
+with deterministic synthetic data. It has no server route, table, invitation or release approval.
+Partner matching, real two-person assessments, purchases and verified-adult content are **not** live.
 
 ## Content tiers
 
