@@ -1,0 +1,66 @@
+# Privacy, matching and relationship lifecycle
+
+## Promise we can defend
+
+Private raw responses are available only to their owner and narrowly scoped application processing necessary to compute explicitly shared matches. Partners never receive response maps, refusal labels, private exclusions, or administrative access. Operational staff have no routine preference browser or impersonation route. Application encryption protects against some database-only exposure; the running application can decrypt for matching. **This is not end-to-end encryption**, and a compromised runtime or deploy administrator can compromise intimate data.
+
+Sharing a positive match deliberately reveals a mutual interest. A person who knows their own YES can infer something from the presence or absence of results. No two-person matching scheme that reveals matches can guarantee the other person’s preferences remain completely unknowable. Do not market “zero inference,” “anonymous” for authenticated use, or “privacy guaranteed.”
+
+## Relationship state and ownership
+
+Each user is independent. `couples` are revocable two-member entities. Users may have distinct relationships without duplicated identities; the MVP UI may support one selected relationship at a time, but never assume a lifetime pairing. No global partner role and no global shared preference table. Relationship context must be explicit in every query. More-than-two-person matching and group safety rules are deferred; do not stretch the two-person predicate to support them.
+
+`pending → active → dissolved`. Invite rejection/revocation/expiry leaves no active shared access. Only two occupied membership slots may exist. Either member may revoke without partner permission; do not require both users online. Dissolution invalidates snapshots and shared recommendations, revokes invitations and removes partner-derived access immediately. Joining a new relationship creates a new context, new invitations and blank relationship preferences. No transfer of matches, no “your last partner liked…” hints. Deleting an account dissolves all active relationships first, then removes private records and auth identity.
+
+## Private round protocol (M4 proposal)
+
+### Scope exception: independent pre-date assessments
+
+[Chemistry Check](CHEMISTRY_CHECK.md), planned 2026-11-20, uses assessment participants and expiring disclosure grants rather than couple membership. The fixed-round principles below remain useful, but their relationship schema/YES-activity predicate is not its authorization or scoring model. Accepting an assessment link grants participation only, not result access, private responses, a couple or ongoing account visibility. Results require both people's explicit approval of exact submission versions and disclosure scope; withdrawal/expiry invalidates an assessment-specific epoch independently of relationship state.
+
+“Private-only” means excluded from **all** partner-visible derived outputs, including score bands, hard-conflict flags, coverage and report-availability branches. Raw-private-but-summary-authorized is a separate informed choice. Broad category summaries and any global hard-conflict signal reveal some aggregate information even without raw answers; sexual summaries default off and require both specific approvals plus adequate shared coverage. No private dealbreaker text/count/owner, partner progress or single-question query is exposed. A hidden dealbreaker cannot silently suppress a report and thereby disclose itself. Reusable owner templates require separate save and per-assessment copy consent, version checks, no carried-over release permission and bounded retention. The module specification covers pair/family anti-probing budgets, account deletion, dependent copies and report TTLs. No Chemistry Check data collection is implemented now.
+
+### Activity preference rounds (M4)
+
+1. Both members authorize the same server-defined deck and immutable catalog revision. Use editorial decks of at least 20 topics spanning multiple categories. This minimum mitigates tiny probes but is not a mathematical anonymity guarantee. No arbitrary custom topic/filter queries or partner-created probes in initial mutual mode.
+2. Each member answers independently. Unanswered, NO, hard NO and MAYBE are ineligible. Role-specific activities use separate directional IDs or structured role assignments; a generic YES cannot stand in for approval of both roles. Specific category opt-ins are recorded per member and intersected, never unioned.
+3. Save a padded authenticated-encryption envelope per member/round, not a response row per activity. Store own state only; never expose partner completion timestamps, response counts, missing-topic counts, key versions, or consent epochs through public payloads. Validate every referenced ID/version against the fixed deck.
+4. Both independently authorize positive-match release with plain disclosure: “This shares topics you both answered YES to.” Save consent revision. The service waits until both authorizations are present; then computes the entire fixed deck in a fixed-shape pass, with no early exits based on response type. It emits one shared positive snapshot. No unilateral preview or partial match count.
+5. Repeat reads return the same released snapshot at its current epoch. There is no endpoint to ask whether a particular activity matched, to compare heat thresholds, or to return a partner pool size. Wheel spins consume the released pool; the animation uses a fixed decorative theme rather than revealing its precise segment count. Discovery/solo never consult a partner’s answers.
+6. Any private edit immediately invalidates the shared snapshot/recipes through an internal consent epoch. Releasing a revised round again requires both approvals. Apply a relationship-scoped release cooldown (initial hypothesis: 24 hours, except immediate revocations); do not rate-limit refusal or deletion. Show a neutral “Refresh shared discovery together” state, not who changed what.
+
+No protocol can hide that a formerly shared idea disappeared, prevent a malicious partner from marking everything YES, or prevent screenshots, memorization, coercion, or out-of-band questioning. Fixed decks, no negative labels and no counts reduce additional leakage. A zero-result round can itself reveal information; present a generic unable-to-build response without detailed reasons, but do not pretend padding/dummy activities can make it safe. Do not add fake positive matches to obscure counts.
+
+Response serialization must avoid partner-specific fields and uniform error classes must cover not-member/missing/stale/empty conditions. Normalize response shapes where practical, pad encrypted envelopes, process full decks and measure timing over allowed/denied cases. Bounded scheduling can reduce obvious timing signals, but network noise or added delays are not a confidentiality proof. Cross-account authorization and field minimization matter more than decorative delay.
+
+## Revocation and stale output
+
+Every shared result carries an internal relationship consent epoch and catalog revision. Before read, spin, recipe generation, save or protected download: authenticate, check adult access, verify two active members, current release authorization, current versions and commercial access. Use D1 primary reads and a conditional final write to linearize against revocation; a failed affected-row check recomputes or denies. Schema triggers advance epoch on preference changes/deletion and membership revocation/deletion. Service checks remain mandatory; triggers do not authorize anything.
+
+No security authority in KV, client state, browser cache, JWT relationship claims, or pre-signed long-lived download links. A response already in flight or displayed cannot be recalled; the next server use must fail, and the client clears views on visibility return or revocation notification. Do not promise removal from screenshots or a former partner’s memory. A previously released shared recipe is not exportable as a private partner dossier. Printable exports are deferred because they cannot be revoked.
+
+## Encryption/key strategy
+
+Before intimate storage, use a reviewed AEAD envelope implementation (Web Crypto AES-GCM via a vetted library/helper design, not invented cryptography), cryptographically generated unique nonces and explicit associated data binding user, relationship, round, version and purpose. Envelope shape and crypto tests require specialist review. Do not implement the proposal merely by adding an unreviewed encrypt function. The foundation stores BLOB/key-version fields but no intimate values or keys.
+
+Initial operationally simple proposal: purpose-separated application keys supplied as Workers secrets, versioned and rotated; production and staging never share keys. This is application-owned, not user-held encryption. A global key does not give per-user crypto-erasure: deletion relies on row purge plus backup aging. Evaluate per-user data keys wrapped under an external key manager before promising crypto-erasure or stronger database/admin separation; storing wrapped keys in the same backup does not erase historical access if the wrapping key remains. External KMS adds cost/network dependencies and remains a decision, not an assumed implemented guarantee.
+
+Break-glass access: no standing dashboard for ciphertext decryption, separate deployment/DB/support permissions, mandatory hardware MFA, time-bound approval for an incident, actor/action-only audit without private payloads, documented customer communication. Avoid framework “admin impersonation” plugins for intimate views. A sole founder still has ultimate runtime control; tell users the realistic limit.
+
+## Proposed retention and deletion
+
+| Data                      | Default / deletion rule                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guest state               | In-memory only now; future server guest TTL at most 24h                                                                                                |
+| Auth verification         | 10-minute expiry; purge expired records within 24h                                                                                                     |
+| Auth sessions             | 7-day max, 24h idle; revoke immediately; purge expired within 24h                                                                                      |
+| Invitations               | 48h expiry; revoke immediately; purge pending/terminal records within 7d                                                                               |
+| Preferences and snapshots | Auto-expire after 90d without explicit renewal; users can delete anytime                                                                               |
+| Generated unsaved results | 24h; saving opts into at most 90d then reconfirm; no permanent intimate history by default                                                             |
+| Dissolved relationships   | Disable access immediately; purge private envelopes/shared results within 24h; minimal tombstone 30d for retry handling                                |
+| Account deletion          | Immediate access/session revocation; target private primary deletion within 24h; financial/support exception disclosed                                 |
+| Security audit            | Actor/action/outcome only, 30d unless a documented incident hold is necessary                                                                          |
+| Commercial aggregates     | No user identifiers; daily aggregate counts, retain 13 months                                                                                          |
+| Financial records         | Minimum legally required period; provisional 7-year budget assumption, counsel sets actual jurisdiction-specific schedule; no private preference links |
+
+These are proposed defaults, not implemented lifecycle jobs. Do not open accounts before verifying purge/relationship-deletion tests and arranging reliable bounded maintenance. D1 recovery history can retain removed rows for [7 days free / 30 days paid](https://developers.cloudflare.com/d1/platform/limits/). A 30-day backup-aging window after deletion must be disclosed if using paid Time Travel. Any restored backup must be quarantined and replay deletion/revocation tombstones before serving. Keep a minimal separate deletion ledger through recovery windows; never restore forgotten sensitive data into active use. No unbounded R2 export archives.

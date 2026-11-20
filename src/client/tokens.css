@@ -1,0 +1,17 @@
+:root {
+  --ink: #240d19;
+  --surface: #3c152a;
+  --burgundy: #641932;
+  --crimson: #bd2850;
+  --pink: #ff8ead;
+  --plum: #552243;
+  --amber: #ffc16d;
+  --gold: #e9bc7b;
+  --cream: #fff2dc;
+  --muted: #d7bfc8;
+  --border: #e9bc7b30;
+  --border-bright: #b38365;
+  --font-body: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --radius-pill: 999px;
+}

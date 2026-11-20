@@ -1,0 +1,119 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CheapSeggs Foundation API",
+    "version": "0.1.0",
+    "description": "Only local foundation routes. No private game, authentication or billing implementation."
+  },
+  "servers": [{ "url": "http://127.0.0.1:8787" }],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Process is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status", "service", "stage"],
+                  "properties": {
+                    "status": { "const": "ok" },
+                    "service": { "const": "cheapseggs" },
+                    "stage": { "const": "foundation" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ready": {
+      "get": {
+        "operationId": "ready",
+        "responses": {
+          "200": {
+            "description": "Migrated D1 catalog queryable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": { "status": { "const": "ready" } }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable or not migrated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": { "status": { "const": "unavailable" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/preview": {
+      "get": {
+        "operationId": "publicCatalogPreview",
+        "responses": {
+          "200": {
+            "description": "Designated non-intimate free previews only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["items", "catalogVersion"],
+                  "properties": {
+                    "catalogVersion": { "const": "sample-1" },
+                    "items": {
+                      "type": "array",
+                      "maxItems": 12,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["id", "version", "title", "description", "durationMinutes"],
+                        "properties": {
+                          "id": { "type": "string" },
+                          "version": { "type": "integer", "minimum": 1 },
+                          "title": { "type": "string" },
+                          "description": { "type": "string" },
+                          "durationMinutes": { "type": "integer", "minimum": 1 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Generic request failure",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": { "error": { "type": "string" } }
+      }
+    }
+  }
+}

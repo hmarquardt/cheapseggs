@@ -1,0 +1,61 @@
+# Discovery, acquisition and search architecture
+
+## Practical acquisition strategy
+
+Lead with useful, original date-night entertainment and an immediately understandable wheel. A distinctive “Wheel of Misfortune” clip without intimate result content can be shareable; brand recognition is the wedge, not thousands of thin keyword pages. Organic/editorial and permission-based creator collaborations are initial tests, not assumed free scalable acquisition. Never collect intimate selections for targeting or retargeting.
+
+| Search intent                                   | Useful page / product connection                                                         | Constraint                                                                |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Couples games / partner compatibility games     | Original guide to choosing a playful two-person game; explain private matching and modes | No compatibility score or claims to diagnose relationships                |
+| Date-night ideas / romantic activity generators | Real low-prep ideas with time/supplies/accessibility alternatives; safe generator sample | Content must be original, not mass AI listicles                           |
+| Couples questions / romantic challenges         | A few thoughtful public prompts, optional seven-day concept later                        | No guilt/streak pressure or signup required for every example             |
+| Sex dice alternatives / fantasy exploration     | Honest feature explanation for adult discovery; boundary-first mode guide                | Adult intent may trigger SafeSearch or ad restrictions                    |
+| Adult party games                               | Editorial distinction between partner intimacy games and party entertainment             | Lower initial fit; no stranger-matching or group activity feature implied |
+| Seasonal romantic nights / hotel editions       | Specific themed editorial page and reviewed pack preview                                 | Avoid thin duplicates or collecting travel/room details                   |
+
+No search-volume, ranking or CAC figures are claimed; none were purchased or measured. Validate via a handful of strong public pages and later consented aggregate Search Console data. Search visibility is uncertain for an adult brand.
+
+## Policy evidence
+
+[Google Ads sexual-content policy](https://support.google.com/adspolicy/answer/6023699?hl=en-9) includes adult sexual entertainment/games among restricted examples; [explicit-content rules](https://support.google.com/adspolicy/answer/16490050) can prohibit graphic arousal-focused material. Ad eligibility depends on destinations and location, not simply tasteful ad creative. Do not base the financial plan on search/display/social ad approval. Other platforms and affiliate networks need current review before any spend; no blanket claim that they accept adult-adjacent games.
+
+[Google’s explicit-content guidance](https://developers.google.com/search/docs/specialty/explicit/guidelines) describes adult metadata and classification; [its troubleshooting guidance](https://developers.google.com/search/docs/specialty/explicit/troubleshooting) notes subtly suggestive content can be filtered and recommends separating substantial explicit material from non-explicit pages. Honest separation by content/audience is sensible; cloaking or showing sanitized pages only to reviewers/bots is not. Public tasteful branding still does not guarantee search or payment eligibility.
+
+## Information architecture
+
+Proposed public routes after launch review:
+
+```text
+/
+/couples-games/
+/wheel-of-misfortune/
+/date-night-machine/
+/secret-menu/              feature explanation only, no matches
+/cookbook/                 curated public safe previews
+/ideas/date-night-at-home/
+/ideas/low-energy-date-night/
+/ideas/anniversary-games/
+/privacy/  /terms/  /consent/  /adult-access/  /help/
+```
+
+Each public feature page answers a different question with original examples, mode/age/consent explanation and a shareable game entry point. Internal navigation connects related content and includes an obvious guest CTA. Build-time HTML works without JavaScript, with canonical URLs, unique titles/descriptions, sitemap and correct status codes. Structured data only for accurately supported content; do not invent ratings, prices or FAQ rich-result promises. Explicit pages, if any, get appropriate adult metadata and applicable access restrictions. Counsel and search review decide whether mature content warrants a separate subdomain; this also changes session/RP/CORS design and must be an ADR, not a casual host split.
+
+Private routes under `/play/`, future `/account/`, invite callbacks and all private APIs: noindex, no-store where sensitive, authentication/authorization on records. Private URLs never enter sitemaps, Open Graph, analytics query strings or canonical tags. Robots is not a security control. Authentication prevents crawlable data disclosure; noindex merely communicates indexing preference.
+
+**Current scaffold is intentionally non-indexable**: global robots disallow and X-Robots/meta noindex. Remove these only for approved public pages at launch, keeping private route rules. No final production canonical/og:url is emitted while the service is only local. There is no sitemap claiming unfinished features are published.
+
+## Sharing and distribution experiments
+
+Public social metadata uses brand/feature title and a tasteful neon-sign/wheel illustration. Commission/export a licensed 1200×630 PNG/WebP before public sharing; the scaffold has no share-image claim. Never place a private result, heat/category preference, partner identity, invite token or recipe contents in a public preview URL. User-triggered sharing should default to the generic entry page; sharing a specific result requires a separate explicit disclosure flow and is deferred.
+
+Test creator partnerships with adult audiences and a transparent product brief, newsletter/editorial outreach only with instruction and permission, a few seasonal original recipe articles, and guest-to-partner invitations. Do not send any outreach during this assignment. Public campaign codes may be a small allowlisted enum, not sexual-interest tags. Disable referrer leakage on invite/private pages.
+
+Affiliate links, when justified, open only after the user chooses a supply/resource page. Disclose compensation before the link, recommend based on editorial suitability, pass no private user/session IDs, avoid affiliate pixels, review merchant network policies and actual margin. Hotels/retreats, printables and embedded wheels are later distribution tests; no unsolicited partnership promises or white-label sales effort now.
+
+Tradeoff: explicit branding improves recognition among interested adults and can reduce mainstream sharing/search/payment acceptance. Keep the cheeky identity and truthful erotic purpose, make public previews broadly tasteful, and accept narrower channels. A serious privacy product cannot fund itself by quietly selling the interests it asks users to trust it with.
+
+## Planned standalone Chemistry Check funnel (2026-11-20)
+
+[Chemistry Check](CHEMISTRY_CHECK.md) could support an honest public `/chemistry-check/` explanation and original editorial pages about expectations before a first date, accepting differences and discussing relationship goals. This is a distinct intent from established-couple games and could introduce the brand earlier. No search-volume, viral-growth or ad-eligibility claim is established. Non-sensitive example questions and 25/50/100 depth explanations may be tested alongside the Wheel's research; launch the actual assessment after the first playable Wheel and its independent auth/privacy gate.
+
+Default sharing sends only a generic public entry link. Assessment invitations use expiring noindex/no-store private URLs with no score, question choices or counterpart identity in preview metadata. Results never become public “compatibility badges” or indexed pair pages. A later invitation to explore the Wheel or form a couple is a separate voluntary action, never selected from sexual scores, mismatches or hidden dealbreakers. The product does not search for strangers or arrange meetings; communicate its actual scope in public copy and underwriting rather than claiming a new policy exemption. No routes or public page were added by this planning change.

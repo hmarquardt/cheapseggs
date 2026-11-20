@@ -1,0 +1,48 @@
+# Authentication and independent identity
+
+Recommendation: **Better Auth, database sessions, email-link onboarding/recovery, optional passkeys for return visits**. No live auth is implemented in this foundation. `src/services/auth.ts` defines the adapter boundary; `/api/auth/*` fails closed. Never substitute a demo cookie for authentication.
+
+## Framework comparison (checked 2026-11-19)
+
+| Option      | Workers/D1 fit                                                                    | Methods / operations                                                                                        | Decision                                                          |
+| ----------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Better Auth | Framework-independent; proposed Drizzle SQLite adapter over D1                    | Email-link and passkey plugins; self-hosted session data; application owns email/abuse operations           | Primary, subject to pinned-version workerd integration proof      |
+| Auth.js     | Official D1 adapter; framework adapters available                                 | Mature OAuth/email patterns; WebAuthn documented as experimental; project now under Better Auth maintainers | Viable, less direct choice for new Hono/passkey-focused app       |
+| Clerk       | Managed identity; Workers HTTP middleware/SDK approach, identity lives outside D1 | Hosted account UI and recovery reduce work, introduce identity vendor and MAU-related cost/policy questions | Fallback only after adult-business suitability and privacy review |
+
+[Better Auth Drizzle adapter](https://better-auth.com/docs/adapters/drizzle) plus [Drizzle D1 documentation](https://orm.drizzle.team/docs/sqlite/connect-cloudflare-d1) support the proposed combination. This is an integration inference, not evidence that our exact configuration is production-tested. [Auth.js D1](https://authjs.dev/getting-started/adapters/d1) documents its schema. [Better Auth releases](https://github.com/better-auth/better-auth/releases) show active maintenance; its [security policy](https://github.com/better-auth/better-auth/security) says only the latest version is supported. Review current advisories when integrating and maintain prompt updates; do not freeze an old auth version indefinitely. [Clerk pricing](https://clerk.com/pricing) is an additional commercial consideration; no managed vendor has been approved.
+
+## Method choice
+
+Email links have little onboarding friction and provide a recognizable recovery channel, but inbox compromise compromises recovery and links may reveal use of the service on shared devices. Explain this before sending. Require explicit email initiation, generic responses, bounded resend budgets, no sexual content in messages, tracking disabled, neutral but honest sender identity and no automatic marketing signup. Links expire in 10 minutes, are single-use and are never logged. A link-scanner-safe confirmation page must not consume or sign in merely on GET; prove the selected framework flow supports a deliberate continuation without weakening token checks. If it cannot, use the framework’s email OTP flow instead.
+
+Passkeys provide a fast, phishing-resistant return path; [Better Auth’s passkey plugin](https://better-auth.com/docs/plugins/passkey) uses SimpleWebAuthn. Add only after verified sign-in, require recent authentication, support multiple credentials and explain that device/passkey account managers may display the site name. Rely on the maintained plugin for WebAuthn verification. RP ID and allowed origins must be fixed for the production domain; staging uses its own RP/config.
+
+OAuth can reduce email delivery but exposes the adult-service identity relationship to another provider. Defer. If added, require PKCE/state/nonce, explicit provider choice, minimal scopes, verified-email account-linking checks and fresh-auth confirmation; never silently link accounts solely by an email claim. Passwords are not an initial method. No custom crypto or password hashing.
+
+## Session and request requirements
+
+- Framework-owned server-side sessions, random opaque tokens, HttpOnly/Secure cookies, SameSite=Lax, host-only domain and `/` path; use `__Host-` prefix where framework configuration supports it. Never localStorage JWTs. Local HTTP development exception only.
+- Proposed lifetime: 7-day absolute maximum, 24-hour idle expiry enforced in the server adapter, fresh auth under 5 minutes for credential/recovery/deletion changes. Multi-device session list and per-device/all-device revocation. These policies require implementation tests; cookie expiration alone is insufficient.
+- Rotate session on authentication, recovery and privilege changes; terminate guest identifier on promotion. Disable session cookie caching for security decisions. Read current session/revocation state from D1 primary before private reads.
+- On mutation, enforce exact trusted Origin, Sec-Fetch-Site and framework CSRF protection; application routes also need a synchronizer token or reviewed equivalent. Reject absent/foreign origins for cookie-authenticated browser mutations. SameSite alone is not a CSRF strategy. Webhooks use provider authentication and no session cookies.
+- No wildcard trusted origins, cross-origin credential CORS, unvalidated callback URLs or user-supplied redirect destinations. Revalidate adult access independently of successful sign-in.
+- Distributed rate budgets for email and IP/network abuse, preferably provider/edge primitives plus D1 atomic counters, not in-memory per-isolate limits. Initial hypotheses: 3 email sends / 15 minutes / address, 10 / IP / 15 minutes; tune from non-sensitive abuse telemetry and accommodate shared networks. Turnstile may supplement, not replace limits.
+
+## Recovery and account lifecycle
+
+Primary recovery is a fresh verified email link. Tell users this is weaker than passkey-only security. Encourage two passkeys; defer a passkey-only account option until there is a reviewed recovery design. No security questions, partner recovery authority or staff bypass based on intimate answers. Email change requires recent auth plus verification of both old and new address where feasible, alerts to the old address, session revocation and a delayed effective change for suspicious cases. Compromised-inbox recovery may be impossible without another trusted credential; support cannot promise otherwise.
+
+Guest discovery initially keeps exclusions/results in memory, resets on reload and has no server identity. If continuity becomes necessary, add a short-lived opaque guest session with a 24-hour TTL; store no identifying preferences by default. Account creation may offer an explicit import of the current device’s guest choices. Never merge automatically into an existing account or partner record; sign in, verify ownership, confirm import, revalidate catalog versions and then revoke the guest token. Private partner matching requires two independently authenticated adults, never one shared guest session.
+
+Invitation acceptance requires signed-in independent identity, current adult-access policy, unexpired single-use high-entropy token (only hash stored), deliberate acceptance and CSRF. An invite link is not a login or preference grant. Atomic membership slot allocation prevents third-member and replay races. Reject self-invites and renewed accepts neutrally. A wrong signed-in identity can decline and switch accounts without leaking the inviter’s private data.
+
+Deletion: reauthenticate, immediately revoke sessions/invites and relationship access, purge private records and process billing cancellation obligations before removing login identity. Legal financial records are pseudonymized/minimized separately; do not silently erase a subscription while leaving recurring charges active. [Privacy](PRIVACY.md) defines retention.
+
+## M1b implementation gate
+
+Planned [Chemistry Check](CHEMISTRY_CHECK.md) (2026-11-20) reuses independent sign-in/adult access but has its **own** assessment invitation acceptance, not the couple-invitation flow above. A claim binds only one participant slot in one expiring assessment; it never creates a couple/session for the other person or grants account visibility. Participation does not permit reading a report until exact-revision mutual release. Couple membership is neither a prerequisite nor sufficient authority. Users can preview non-sensitive questions as guests, but server-stored responses/reuse require their own identity. Include no-couple accounts, link forwarding, self-claim/replay, wrong account, block/withdrawal and result-expiry cases in auth/authorization integration tests before this module opens.
+
+Pin the current supported stable Better Auth/plugin/Drizzle versions; generate auth schema from the actual configuration into a new reviewed SQL migration. Map `users.auth_subject` to the auth user ID with explicit lifecycle handling. Framework tables own credentials/sessions/verification/passkeys; domain `users` own relationships and grants. Do not run automatic auth schema mutation at runtime.
+
+Prove workerd/D1 email issuance, token replay rejection, scanner behavior, passkey RP/origin checks, concurrent token consumption, guest fixation protection, all-device revocation, CSRF rejection, deletion and recovery races. Verify trusted-proxy assumptions, sanitized framework logger, email AUP and regional processing. Only then enable auth routes. The presence of an interface is not production-grade authentication.
