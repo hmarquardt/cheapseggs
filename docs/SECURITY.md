@@ -39,6 +39,11 @@ Browser state and all request fields are untrusted. Boundaries: browser ↔ Work
 ## HTTP/input/secrets baseline
 
 Implemented baseline: CSP `default-src 'self'`, script/style/connect/img self, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`, `form-action 'self'`; frame denial, nosniff, no-referrer and disabled camera/microphone/geolocation. Static `_headers` and Hono API middleware are separate. No inline script, font CDNs or third-party runtime assets. HSTS for future HTTPS; do not add includeSubDomains until all subdomains are inventoried. Future Turnstile/payment embeds require narrowly reviewed CSP changes; prefer hosted redirect checkout.
+Zone-level tagging is a boundary to watch: this zone has Cloudflare Web Analytics enabled, so the edge
+injects `static.cloudflareinsights.com/beacon.min.js` into HTML responses (including `/play/`). CSP
+refuses it before execution — a production Chromium run on 2026-11-20 recorded the violation and no
+beacon payload — and the recommendation is to disable Web Analytics in the dashboard rather than add
+it to `script-src`.
 
 Before new endpoints: Zod validation with strict objects, bounded arrays/strings and enums, content-type checks, 16 KB typical JSON body limit (lower where possible), pagination ceilings, URL allowlists, prepared D1 SQL and fixed allowlisted identifiers. Return generic errors; internal audit codes cannot include response values. Rate limits must be distributed; in-memory counters are not enough. Use per-route CPU/time caps and bounded recipe search/catalog size. Do not make guest requests a free unlimited email or compute service.
 

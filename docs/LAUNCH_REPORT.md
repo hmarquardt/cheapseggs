@@ -1,5 +1,24 @@
 # Public launch evidence
 
+## M2.1 privacy and abuse hardening release (2026-11-20)
+
+| Item                     | Observed                                                                                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release                  | commit `44b8b309938d805f976aaaf12921cb7a0143d90f`, Worker `d844edbe-3029-48e9-80d1-30a22e236faa`                                                                           |
+| CI                       | [run 44784610515](https://github.com/hmarquardt/cheapseggs/actions/runs/44784610515) — validate, deploy and independent smoke all passed                                   |
+| `/api/version`           | revision matches the pushed commit; `spinDigestKeyed: true`; `rateLimits {spin: true, wheel: true}`                                                                        |
+| Worker secret            | `SPIN_DIGEST_KEY` set once with `wrangler secret put` and still bound after deploy; the production check rejects an unkeyed fingerprint, so losing it cannot ship silently |
+| Live spin                | `Set the soundtrack` on a real spin; the wedge under the pointer equals the winner marked in the ordered list; captions inside the rim; no horizontal overflow             |
+| Guest privacy in browser | 0 cookies, 0 `localStorage`/`sessionStorage` entries after acknowledgement, spin and result                                                                                |
+| CSP                      | one violation: `static.cloudflareinsights.com/beacon.min.js` refused by `script-src 'self'`; no beacon payload sent                                                        |
+| Evidence                 | `artifacts/production-smoke.json`, `artifacts/production-wheel-m2-1.json`, `artifacts/production-wheel-m2-1.png`                                                           |
+
+Fixed in this pass: the persisted fingerprint is HMAC-keyed (a database reader can no longer recover
+heat, opt-ins or hard-NOs by enumeration), the public endpoints carry Cloudflare-native per-location
+rate limits that store nothing in D1, wheel captions no longer overflow their wedges, the disc is no
+longer an empty circle before the first spin, optional sound ticks again, and "not tonight" can no
+longer push exclusions past the server bound.
+
 ## M2 release — first playable Wheel of Misfortune (2026-11-20)
 
 Commit **`dbfdeeb8bc7a3d3895ac5584a9fd91a81fa73dd0`** was pushed to `main` and released by
@@ -19,23 +38,37 @@ tagged Worker upload, production smoke).
 | Idempotency in production | same key/body replays one result; changed body → `409 spin_conflict`; `DELETE /api/v1/guest` → 204 (all asserted by the smoke)                                                                                                                                                                    |
 | Real device run           | iPhone 13 viewport against `https://cheapseggs.com/play/`: acknowledgement → spin → result card (`Kitchen sway`, Movement/Mild/10 min), 8-item list with the winner marked, no horizontal overflow, **0 cookies, 0 local/session storage**, screenshot in `artifacts/production-wheel-mobile.png` |
 
-### Deliberate boundary observation (corrected 2026-11-20, M2.1)
+### Deliberate boundary observation (re-verified 2026-11-20, M2.1)
 
-The original M2 note claimed Cloudflare injected the automatic Web Analytics beacon
-(`static.cloudflareinsights.com/beacon.min.js`) into our HTML and that CSP blocked it. That claim
-did not survive re-verification. Fetching `/`, `/privacy/` and `/play/` on 2026-11-20 (including
-cache-busted and `cache-control: no-cache` requests) returned **no** beacon `<script>` tag and no
-`data-cf-beacon` attribute; the only Cloudflare-injected headers are `report-to`/`nel` endpoint
-descriptors, which carry no page content. So the beacon is not currently enabled for this zone and
-the CSP was never actually exercised against it.
+This zone has Cloudflare Web Analytics (RUM) enabled, so the edge injects a beacon script into HTML
+responses — including Worker-served pages such as `/play/`:
 
-The position is unchanged and simpler: `script-src 'self'` remains the backstop, so if Web
-Analytics is switched on in the Cloudflare dashboard the tag would load and be refused. CheapSeggs
-ships only the consented, path-allowlisted CFLab adapter. Disabling Cloudflare Web Analytics is a
-zone-level dashboard setting (`Analytics → Web Analytics`, automatic setup) that neither the Worker
-config nor the build can control; the deployment token used here has zone read only, so it is
-recorded as a recommendation rather than changed silently. Nothing needs to change for privacy
-today because no beacon is served.
+```html
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce7018…"
+        data-cf-beacon='{"version":"2024.11.0","token":"51758fcb…","r":1,"spa":2}' crossorigin="anonymous">
+```
+
+**The verification method matters.** A plain `curl` without `Accept: text/html` (and with a
+cache-busting query string) receives cached bytes that do not contain the tag; an intermediate M2.1
+draft wrongly concluded from that alone that no beacon was served, and this note is corrected here.
+Repeating the request the way a browser does makes it visible:
+
+```sh
+curl -sS -H 'accept: text/html' https://cheapseggs.com/play/ | grep -o 'beacon.min.js[^"]*'
+```
+
+Our CSP is `script-src 'self'`, so the browser refuses the script before it executes. A real
+Chromium session against production (iPhone 13 viewport, 2026-11-20) recorded exactly one CSP
+violation — the refused `beacon.min.js` module — and no beacon payload was sent. The privacy impact
+today is therefore none, and the position is unchanged in principle: we do not widen CSP to admit a
+tracker we did not choose, and CheapSeggs ships only its own consented, path-allowlisted CFLab
+adapter.
+
+**Recommendation (not performed):** disable Web Analytics for `cheapseggs.com` in the Cloudflare
+dashboard (`Analytics → Web Analytics`) so the tag stops being injected. It is a zone-level setting
+that neither `wrangler.jsonc` nor the build controls, and the deployment credential in CI has zone
+read only, so changing it would require a broader token than this release uses. No billing change is
+involved.
 
 ### What this release does and does not claim
 

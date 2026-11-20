@@ -31,13 +31,31 @@ Defects found and corrected in this pass (all reproducible before the fix):
    next spin would 422. The client list is now capped, newest first.
 5. **A 429 had no honest message.** `rate_limited` fell through to "The wheel could not answer".
 
+### Production release (M2.1)
+
+Release `44b8b309938d805f976aaaf12921cb7a0143d90f` / Worker
+`d844edbe-3029-48e9-80d1-30a22e236faa` passed [GitHub run
+44784610515](https://github.com/hmarquardt/cheapseggs/actions/runs/44784610515) (validate → deploy →
+independent smoke) and an independent live smoke at 2026-11-20T17:43Z. Live assertions now include
+`spinDigestKeyed: true` and `rateLimits {spin, wheel} = {true, true}` — an unkeyed fingerprint or a
+missing limiter fails the release. A production Chromium session (iPhone 13 viewport) confirmed the
+wedge under the pointer is the winner marked in the list (`underPointer 1 = winnerIndex 1`), captions
+inside the rim (max radius 90 of 107), no horizontal overflow, **0 cookies and 0 storage entries**,
+and exactly one CSP violation: the zone-injected Cloudflare Web Analytics beacon, refused before it
+could send anything. Evidence: `artifacts/production-smoke.json`,
+`artifacts/production-wheel-m2-1.json`, `artifacts/production-wheel-m2-1.png`.
+
+The release also confirms the secret survived deployment (secrets persist across `wrangler deploy`),
+so no GitHub-side value or workflow change was needed.
+
 ### Verification limits (M2.1)
 
 Still not done: moderated adult usability testing, professional content review of the 44 published
 entries, real assistive-technology passes (VoiceOver/NVDA), and load testing. Rate limiting is
 approximate and per Cloudflare location, so it slows bulk automation rather than stopping it. The
-Cloudflare Web Analytics beacon is not served today; disabling it in the dashboard remains a
-recommendation, not a verified configuration change (the deployment token has zone read only).
+zone's Cloudflare Web Analytics beacon is injected at the edge and refused by CSP (verified in a
+production Chromium run: one CSP violation, no payload sent); disabling it in the dashboard remains
+a recommendation, not a configuration change (the deployment token has zone read only).
 
 ## M2 guest Discovery wheel (2026-11-20)
 
