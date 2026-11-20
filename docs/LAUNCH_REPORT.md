@@ -11,6 +11,7 @@
 | Live spin                | `Set the soundtrack` on a real spin; the wedge under the pointer equals the winner marked in the ordered list; captions inside the rim; no horizontal overflow             |
 | Guest privacy in browser | 0 cookies, 0 `localStorage`/`sessionStorage` entries after acknowledgement, spin and result                                                                                |
 | CSP                      | one violation: `static.cloudflareinsights.com/beacon.min.js` refused by `script-src 'self'`; no beacon payload sent                                                        |
+| Abuse control (live)     | 48 spins from one address: 43 accepted, then `429 {"error":"rate_limited"}` with `retry-after: 60`; the next smoke after the window reset passed                           |
 | Evidence                 | `artifacts/production-smoke.json`, `artifacts/production-wheel-m2-1.json`, `artifacts/production-wheel-m2-1.png`                                                           |
 
 Fixed in this pass: the persisted fingerprint is HMAC-keyed (a database reader can no longer recover

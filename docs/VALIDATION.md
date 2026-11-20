@@ -48,6 +48,13 @@ could send anything. Evidence: `artifacts/production-smoke.json`,
 The release also confirms the secret survived deployment (secrets persist across `wrangler deploy`),
 so no GitHub-side value or workflow change was needed.
 
+The rate limit was also exercised against production rather than inferred: 48 spins 120 ms apart from
+one address returned 43 successes and then `429 {"error":"rate_limited"}` with `retry-after: 60`. The
+threshold is configured at 40, and the platform is documented as approximate and per-location, so a
+few requests past the number is expected rather than a defect. The smoke immediately after the
+window reset passed, so ordinary play is unaffected. Evidence: `rateLimitProbe` in
+`artifacts/production-wheel-m2-1.json`.
+
 ### Verification limits (M2.1)
 
 Still not done: moderated adult usability testing, professional content review of the 44 published
