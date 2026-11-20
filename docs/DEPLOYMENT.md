@@ -10,21 +10,23 @@ Local config: `wrangler.jsonc`, local Worker name, all-zero local D1 ID, no live
 
 ## Resource inventory
 
-| Resource                         | Name / identifier                                            | Status / purpose                                                                                            |
-| -------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| Cloudflare account               | b1aa310aa0a1638d72b8b086a21e557c                             | Existing; Workers Standard usage model already configured                                                   |
-| Zone                             | cheapseggs.com / 3f54cc8fa4f93859b8b38c818ccfd015            | Existing active Free Website zone; existing nameservers retained                                            |
-| Worker                           | cheapseggs                                                   | Created/deployed and verified, one modular monolith plus static assets                                      |
-| Custom domains                   | cheapseggs.com; www.cheapseggs.com                           | Active HTTPS custom domains verified; Worker redirects www to apex with 308                                 |
-| Production D1                    | cheapseggs-production / ef9ff0b0-97d5-428b-81df-cd02fe342bb8 | Created 2026-11-20; only public editorial samples are seeded                                                |
-| Local D1                         | cheapseggs-local / all-zero config ID                        | Local emulator only, not a Cloudflare production resource                                                   |
-| R2                               | None created                                                 | Media remains Workers static assets; future private/premium media bucket deferred by ADR                    |
-| CFLab site                       | cheapseggs / as_v3ng10kbDYMLWnFWOsf52W                       | Registered in existing analytics service, seven-day raw retention                                           |
-| Extra Workers/KV/DO/queues/crons | None                                                         | Not needed for safe public release                                                                          |
-| GitHub production environment    | production, main branch only                                 | Created for release job                                                                                     |
-| GitHub repository variable       | CLOUDFLARE_DEPLOY_ENABLED=true                               | Explicit new-project release gate; not the gate of another repository                                       |
-| GitHub secret                    | CLOUDFLARE_API_TOKEN                                         | Configured 2026-11-20; scoped cheapseggs-github-deploy token, expires 2027-11-21 05:59:59 UTC               |
-| Search Console                   | sc-domain:cheapseggs.com                                     | Verified domain; intended human owner plus existing service account, sitemap submitted (pending processing) |
+| Resource                         | Name / identifier                                            | Status / purpose                                                                                                 |
+| -------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Cloudflare account               | b1aa310aa0a1638d72b8b086a21e557c                             | Existing; Workers Standard usage model already configured                                                        |
+| Zone                             | cheapseggs.com / 3f54cc8fa4f93859b8b38c818ccfd015            | Existing active Free Website zone; existing nameservers retained                                                 |
+| Worker                           | cheapseggs                                                   | Created/deployed and verified, one modular monolith plus static assets                                           |
+| Custom domains                   | cheapseggs.com; www.cheapseggs.com                           | Active HTTPS custom domains verified; Worker redirects www to apex with 308                                      |
+| Production D1                    | cheapseggs-production / ef9ff0b0-97d5-428b-81df-cd02fe342bb8 | Created 2026-11-20; only public editorial samples are seeded                                                     |
+| Local D1                         | cheapseggs-local / all-zero config ID                        | Local emulator only, not a Cloudflare production resource                                                        |
+| R2                               | None created                                                 | Media remains Workers static assets; future private/premium media bucket deferred by ADR                         |
+| CFLab site                       | cheapseggs / as_v3ng10kbDYMLWnFWOsf52W                       | Registered in existing analytics service, seven-day raw retention                                                |
+| Extra Workers/KV/DO/queues/crons | None                                                         | Not needed for safe public release                                                                               |
+| GitHub production environment    | production, main branch only                                 | Created for release job                                                                                          |
+| GitHub repository variable       | CLOUDFLARE_DEPLOY_ENABLED=true                               | Explicit new-project release gate; not the gate of another repository                                            |
+| GitHub secret                    | CLOUDFLARE_API_TOKEN                                         | Configured 2026-11-20; scoped cheapseggs-github-deploy token, expires 2027-11-21 05:59:59 UTC                    |
+| Worker secret                    | SPIN_DIGEST_KEY                                              | Set 2026-11-20 (`wrangler secret put`, 32+ random bytes); HMAC key for spin fingerprints, rolls deploy to deploy |
+| Rate limit bindings              | SPIN_RATE_LIMITER, WHEEL_RATE_LIMITER                        | Declared in both Wrangler configs; Cloudflare-native counters, no extra service or billing                       |
+| Search Console                   | sc-domain:cheapseggs.com                                     | Verified domain; intended human owner plus existing service account, sitemap submitted (pending processing)      |
 
 Account/zone/database/site IDs are configuration, not secrets. Do not include authentication token values, Google JSON/private key, passwords or browser sessions in this inventory. No R2 bucket is needed to host public social cards. Creating one for an unused binding would add operational surface without a requirement.
 
@@ -35,6 +37,29 @@ Account/zone/database/site IDs are configuration, not secrets. Do not include au
 Validation installs the exact lockfile, runs lint/types, target/config and PNG checks, unit/API/privacy tests, fresh SQLite migration/seed constraints, both builds, actual local D1 migrations/idempotent seed/readback and desktop/mobile browser/accessibility/social/analytics tests. Deployment checks the same commit/branch/repository, refuses dirty sources/missing credentials, builds the public assets, records a D1 Time Travel bookmark, applies reviewed migrations remotely, seeds only the three reviewed non-explicit sample ideas, and runs Wrangler with `--no-x-provision`, commit tag and `DEPLOY_REVISION:<sha>`.
 
 The production verify step allows at most 12 observations per response with five-second pauses, within one shared 90-second propagation deadline. It requires the exact response revision at each endpoint because different requests may hit different deployment edges. HTTP application errors and all content/security assertions fail immediately. It checks version/commit, apex HTTPS, www redirect, public routes, browser/Facebook/X/LinkedIn initial HTML equality, metadata/image dimensions, static assets, sitemap/robots, health, database readiness, safe sample API, CSP/security headers, private-route noindex/no-store and disabled auth/payment APIs. It uploads `artifacts/production-smoke.json` to the run with 14-day retention. Never call a release successful if that step fails. Social-crawler HTTP checks are not a claim of a platform-rendered preview.
+
+### Worker secret: SPIN_DIGEST_KEY
+
+The guest wheel persists an idempotency fingerprint per spin. Without a key that fingerprint is an
+ordinary hash of a small, enumerable boundary configuration, which a database or backup reader
+could attack offline (`docs/WHEEL.md`, `docs/SECURITY.md`). Provision the key once per Worker:
+
+```sh
+# 32+ random bytes; keep the value out of the shell history and out of the repository
+openssl rand -hex 32 | npx wrangler secret put SPIN_DIGEST_KEY --config wrangler.production.jsonc
+```
+
+Secrets survive `wrangler deploy`, so the release workflow does not need to set it again. Two
+consequences to plan for:
+
+- `GET /api/version` reports `spinDigestKeyed`. The production verify step fails when it is false, so
+  a release that loses the secret is not reported green.
+- Rotating the key (or shipping new digest logic) makes the previous 24 hours of stored fingerprints
+  unable to match. In-flight retries then receive `409 spin_conflict`, which the interface already
+  explains; no result is lost and no boundary is widened.
+
+Local development and unit tests run without the key on purpose: the fallback is exercised and
+`/api/version` shows `spinDigestKeyed: false` there.
 
 ### Deployment credential
 

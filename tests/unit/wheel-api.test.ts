@@ -1,11 +1,35 @@
 import { describe, expect, it } from "vitest";
+import { eligibleActivities } from "../../src/domain/eligibility";
+import { canonicalRequest, spinRequestSchema, toEligibilityContext } from "../../src/domain/wheel";
 import { app } from "../../src/server";
 import type { Bindings } from "../../src/server/bindings";
-import { loadWheelCatalog } from "../../src/services/wheel";
+import {
+  digest,
+  loadWheelCatalog,
+  MIN_DIGEST_KEY_LENGTH,
+  REQUEST_DIGEST_DOMAIN,
+  requestDigest,
+  requestDigestKeyed,
+} from "../../src/services/wheel";
 import { createTestDatabase, seedCount, type TestDatabase } from "../support/d1";
 
+function envWith(db: D1Database, extra: Partial<Bindings> = {}): Bindings {
+  return { DB: db, APP_ENV: "local", ...extra } as unknown as Bindings;
+}
+
 function env(db: D1Database): Bindings {
-  return { DB: db, APP_ENV: "local" } as unknown as Bindings;
+  return envWith(db);
+}
+
+/** Stand-in for the Cloudflare rate limiting binding. */
+function limiter(behaviour: "allow" | "deny" | "error", seen: string[] = []) {
+  return {
+    limit: async ({ key }: { key: string }) => {
+      seen.push(key);
+      if (behaviour === "error") throw new Error("rate limiter unavailable");
+      return { success: behaviour === "allow" };
+    },
+  } as unknown as RateLimit;
 }
 
 function key(): string {
@@ -45,10 +69,10 @@ async function result(database: TestDatabase, body: Record<string, unknown> = {}
   const payload = (await response.json()) as {
     status: string;
     guest: { id: string };
-    shortlist: { id: string; index: number; title: string }[];
+    shortlist: { id: string; index: number; title: string; heat: number; category: string }[];
     selectedIndex: number;
     eligibleCount: number;
-    result: { id: string; heat: number; category: string; mode: string };
+    result: { id: string; title: string; heat: number; category: string; mode: string };
   };
   expect(payload.status).toBe("result");
   return payload;
@@ -490,5 +514,285 @@ describe("authoritative spins", () => {
         (await app.request("/api/payments/webhook", { method: "POST" }, env(database.db))).status,
       ).toBe(503);
     });
+  });
+});
+
+describe("request fingerprint privacy", () => {
+  it("keys the stored fingerprint so a database reader cannot test candidate boundaries", async () => {
+    const database = createTestDatabase();
+    const secret = "p".repeat(32);
+    const body = {
+      heat: "spicy",
+      optIns: ["touch"],
+      excludedCategories: ["connection"],
+      idempotencyKey: key(),
+    };
+    const token = guestToken();
+    const response = await app.request(
+      "/api/v1/spins",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-cheapseggs-guest": token,
+        },
+        body: JSON.stringify(body),
+      },
+      envWith(database.db, { SPIN_DIGEST_KEY: secret }),
+    );
+    expect(response.status).toBe(200);
+
+    const canonical = canonicalRequest(spinRequestSchema.parse({ wheelId: "misfortune", ...body }));
+    const stored = (
+      database.raw.prepare("SELECT request_digest FROM guest_spins").get() as {
+        request_digest: string;
+      }
+    ).request_digest;
+
+    expect(stored).toHaveLength(64);
+    expect(stored).toBe(await requestDigest(secret, canonical));
+    // The unkeyed hash is the one a DB reader could brute force from a small input space.
+    expect(stored).not.toBe(await digest(canonical));
+    expect(stored).not.toBe(await requestDigest(undefined, canonical));
+
+    // Replay correctness survives the keyed fingerprint.
+    const replay = await app.request(
+      "/api/v1/spins",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-cheapseggs-guest": token },
+        body: JSON.stringify(body),
+      },
+      envWith(database.db, { SPIN_DIGEST_KEY: secret }),
+    );
+    expect(replay.status).toBe(200);
+    expect(((await replay.json()) as { replayed: boolean }).replayed).toBe(true);
+    expect(seedCount(database.raw, "guest_spins")).toBe(1);
+  });
+
+  it("reports an unkeyed fingerprint instead of hiding the weaker fallback", async () => {
+    const database = createTestDatabase();
+    const canonical = canonicalRequest(
+      spinRequestSchema.parse({ wheelId: "misfortune", idempotencyKey: key() }),
+    );
+    expect(requestDigestKeyed(undefined)).toBe(false);
+    expect(requestDigestKeyed("short")).toBe(false);
+    // The fallback is still domain-separated, so it is not a bare hash of the request.
+    expect(await requestDigest(undefined, canonical)).toBe(
+      await digest(`${REQUEST_DIGEST_DOMAIN}\n${canonical}`),
+    );
+    const version = (await (
+      await app.request("/api/version", {}, envWith(database.db))
+    ).json()) as { spinDigestKeyed: boolean };
+    expect(version.spinDigestKeyed).toBe(false);
+  });
+
+  it("ignores a key that is too short to add any protection", async () => {
+    expect(requestDigestKeyed("x".repeat(MIN_DIGEST_KEY_LENGTH - 1))).toBe(false);
+    expect(requestDigestKeyed("x".repeat(MIN_DIGEST_KEY_LENGTH))).toBe(true);
+  });
+});
+
+describe("public endpoint abuse protection", () => {
+  const body = () => JSON.stringify({ idempotencyKey: key() });
+
+  it("refuses a spin over the client budget before touching guest state", async () => {
+    const database = createTestDatabase();
+    const seen: string[] = [];
+    const response = await app.request(
+      "/api/v1/spins",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-cheapseggs-guest": guestToken(),
+          "cf-connecting-ip": "203.0.113.9",
+        },
+        body: body(),
+      },
+      envWith(database.db, { SPIN_RATE_LIMITER: limiter("deny", seen) }),
+    );
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(await response.json()).toEqual({ error: "rate_limited" });
+    expect(seen).toEqual(["spin:203.0.113.9"]);
+    expect(seedCount(database.raw, "guest_sessions")).toBe(0);
+    expect(seedCount(database.raw, "guest_spins")).toBe(0);
+  });
+
+  it("limits the wheel description on its own counter", async () => {
+    const database = createTestDatabase();
+    const denied = await app.request(
+      "/api/v1/wheels/misfortune",
+      { headers: { "cf-connecting-ip": "198.51.100.4" } },
+      envWith(database.db, { WHEEL_RATE_LIMITER: limiter("deny") }),
+    );
+    expect(denied.status).toBe(429);
+    expect(await denied.json()).toEqual({ error: "rate_limited" });
+
+    const allowed = await app.request(
+      "/api/v1/wheels/misfortune",
+      {},
+      envWith(database.db, { WHEEL_RATE_LIMITER: limiter("allow") }),
+    );
+    expect(allowed.status).toBe(200);
+  });
+
+  it("fails open when the binding is absent or erroring", async () => {
+    const database = createTestDatabase();
+    for (const bindings of [{}, { SPIN_RATE_LIMITER: limiter("error") }]) {
+      const response = await app.request(
+        "/api/v1/spins",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-cheapseggs-guest": guestToken(),
+          },
+          body: body(),
+        },
+        envWith(database.db, bindings),
+      );
+      expect(response.status).toBe(200);
+    }
+  });
+
+  it("reports the configured limiters on the version endpoint", async () => {
+    const database = createTestDatabase();
+    const version = (await (
+      await app.request(
+        "/api/version",
+        {},
+        envWith(database.db, {
+          SPIN_RATE_LIMITER: limiter("allow"),
+          WHEEL_RATE_LIMITER: limiter("allow"),
+        }),
+      )
+    ).json()) as { rateLimits: { spin: boolean; wheel: boolean } };
+    expect(version.rateLimits).toEqual({ spin: true, wheel: true });
+  });
+});
+
+describe("content and consent integrity", () => {
+  it("matches the result to the wedge the wheel marks as the winner", async () => {
+    const database = createTestDatabase();
+    const payload = await result(database, { heat: "spicy" });
+    const winner = payload.shortlist[payload.selectedIndex];
+    expect(winner).toBeDefined();
+    expect(payload.result.id).toBe(winner?.id);
+    expect(payload.result.title).toBe(winner?.title);
+    expect(payload.result.heat).toBe(winner?.heat);
+    expect(payload.result.category).toBe(winner?.category);
+  });
+
+  it("never serves a hard-NO or an un-opted-in category across many spins", async () => {
+    const database = createTestDatabase();
+    const catalog = await loadWheelCatalog(database.db, "misfortune");
+    const consentPrefixed = (catalog?.categories ?? [])
+      .filter((category) => category.requiredOptIn)
+      .map((category) => category.id);
+    expect(consentPrefixed.length).toBeGreaterThan(0);
+
+    const token = guestToken();
+    let seen = 0;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const response = await spin(
+        database,
+        { idempotencyKey: key(), heat: "spicy", excludedCategories: ["connection"] },
+        { "x-cheapseggs-guest": token },
+      );
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as {
+        status: string;
+        result?: { category: string; heat: number };
+      };
+      if (payload.status !== "result" || !payload.result) continue;
+      seen++;
+      expect(payload.result.category).not.toBe("connection");
+      expect(consentPrefixed).not.toContain(payload.result.category);
+      expect(payload.result.heat).toBeLessThanOrEqual(2);
+    }
+    expect(seen).toBeGreaterThan(10);
+  });
+
+  it("keeps heat and experimentation independent", async () => {
+    const database = createTestDatabase();
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const payload = await result(database, { heat: "mild", experimentation: "adventurous" });
+      expect(payload.result.heat).toBe(0);
+    }
+    const catalog = await loadWheelCatalog(database.db, "misfortune");
+    const wild = eligibleActivities(
+      catalog?.activities ?? [],
+      toEligibilityContext(
+        spinRequestSchema.parse({
+          idempotencyKey: key(),
+          heat: "spicy",
+          experimentation: "classic",
+        }),
+      ),
+    );
+    expect(wild.every((activity) => activity.experimentation === 0)).toBe(true);
+  });
+
+  it("rejects client state that tries to widen eligibility", async () => {
+    const database = createTestDatabase();
+    for (const extra of [
+      { maxHeat: 3 },
+      { eligibleIds: ["draft-habanero"] },
+      { optIns: ["touch"], granted: true },
+    ]) {
+      const response = await spin(database, { idempotencyKey: key(), ...extra });
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({ error: "invalid_request" });
+    }
+    expect(seedCount(database.raw, "guest_sessions")).toBe(0);
+  });
+
+  it("never widens the pool to avoid a repeat", async () => {
+    const database = createTestDatabase();
+    const catalog = await loadWheelCatalog(database.db, "misfortune");
+    const permissive = spinRequestSchema.parse({
+      idempotencyKey: key(),
+      heat: "spicy",
+      experimentation: "adventurous",
+      energy: "high",
+      duration: "all-evening",
+      environment: "home",
+      supplies: (catalog?.supplies ?? []).map((supply) => supply.id),
+      optIns: (catalog?.categories ?? [])
+        .filter((category) => category.requiredOptIn)
+        .map((category) => category.id),
+    });
+    const pool = eligibleActivities(catalog?.activities ?? [], toEligibilityContext(permissive));
+    expect(pool.length).toBeGreaterThan(0);
+    const keep = pool[0]?.id ?? "";
+    const exclusions = (catalog?.activities ?? [])
+      .map((activity) => activity.id)
+      .filter((id) => id !== keep);
+    expect(exclusions.length).toBeLessThanOrEqual(50);
+
+    const token = guestToken();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const response = await spin(
+        database,
+        {
+          idempotencyKey: key(),
+          heat: "spicy",
+          experimentation: "adventurous",
+          energy: "high",
+          duration: "all-evening",
+          supplies: permissive.supplies,
+          optIns: permissive.optIns,
+          excludedActivities: exclusions,
+        },
+        { "x-cheapseggs-guest": token },
+      );
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as { status: string; result?: { id: string } };
+      expect(payload.status).toBe("result");
+      // Repeat avoidance may repeat this single idea; it may never select an excluded one.
+      expect(payload.result?.id).toBe(keep);
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { SITE_ORIGIN } from "../config/site";
 import type { Activity } from "../domain/catalog";
 import { eligibleActivities } from "../domain/eligibility";
@@ -26,7 +26,6 @@ import {
 import {
   countSessionSpins,
   deleteGuestSession,
-  digest,
   ensureGuestSession,
   findSpin,
   GUEST_TTL_SECONDS,
@@ -36,14 +35,45 @@ import {
   MAX_SPINS_PER_SESSION,
   purgeExpired,
   recentActivityIds,
+  requestDigest,
   type SpinRecord,
 } from "../services/wheel";
 import type { Bindings } from "./bindings";
 
 export const WHEEL_ID = "misfortune";
 const MAX_BODY_BYTES = 4096;
+/** Advertised back-off for an approximate, per-location Cloudflare rate limit. */
+const RATE_LIMIT_RETRY_SECONDS = 60;
 
 export const wheelRoutes = new Hono<{ Bindings: Bindings }>();
+
+type LimiterKind = "spin" | "wheel";
+
+/**
+ * Approximate abuse speed bump in front of the public endpoints. Cloudflare counts per
+ * client and per location in its own infrastructure, so nothing about a visitor is
+ * written to D1. It is deliberately not a security control: it fails open, and the
+ * per-session spin budget plus the 4 KiB body cap still apply if it is unavailable.
+ */
+async function rateLimited(
+  env: Bindings,
+  kind: LimiterKind,
+  clientKey: string | undefined,
+): Promise<boolean> {
+  const limiter = kind === "spin" ? env.SPIN_RATE_LIMITER : env.WHEEL_RATE_LIMITER;
+  if (!limiter) return false;
+  try {
+    const { success } = await limiter.limit({ key: `${kind}:${clientKey ?? "unknown"}` });
+    return !success;
+  } catch {
+    return false;
+  }
+}
+
+function tooMany(c: Context<{ Bindings: Bindings }>): Response {
+  c.header("retry-after", String(RATE_LIMIT_RETRY_SECONDS));
+  return c.json({ error: "rate_limited" }, 429);
+}
 
 /**
  * Same-origin defence in depth. The guest token is a header, not a cookie, so there
@@ -130,6 +160,7 @@ function winnerFrom(catalog: WheelCatalog, spin: SpinRecord): Activity | null {
 
 wheelRoutes.get("/wheels/:wheel", async (c) => {
   if (!c.env?.DB) return c.json({ error: "unavailable" }, 503);
+  if (await rateLimited(c.env, "wheel", c.req.header("cf-connecting-ip"))) return tooMany(c);
   if (c.req.param("wheel") !== WHEEL_ID) return c.json({ error: "not_found" }, 404);
   let catalog: WheelCatalog | null;
   try {
@@ -189,6 +220,7 @@ function weightOf(catalog: WheelCatalog, activity: Activity): number {
 wheelRoutes.post("/spins", async (c) => {
   const env = c.env;
   if (!env?.DB) return c.json({ error: "unavailable" }, 503);
+  if (await rateLimited(env, "spin", c.req.header("cf-connecting-ip"))) return tooMany(c);
   if (!originAllowed(env, c.req.header("origin"), c.req.url)) {
     return c.json({ error: "origin_rejected" }, 403);
   }
@@ -243,10 +275,10 @@ wheelRoutes.post("/spins", async (c) => {
     // Cleanup is best effort; never fail a valid spin because a purge batch failed.
   }
 
-  const requestDigest = await digest(canonicalRequest(request));
+  const fingerprint = await requestDigest(env.SPIN_DIGEST_KEY, canonicalRequest(request));
   const existing = await findSpin(env.DB, request.idempotencyKey);
   if (existing) {
-    if (existing.sessionId !== session.id || existing.requestDigest !== requestDigest) {
+    if (existing.sessionId !== session.id || existing.requestDigest !== fingerprint) {
       return c.json({ error: "spin_conflict" }, 409);
     }
     // A replay must not bypass withdrawal: the stored result has to still be current.
@@ -283,7 +315,7 @@ wheelRoutes.post("/spins", async (c) => {
     {
       id: request.idempotencyKey,
       sessionId: session.id,
-      requestDigest,
+      requestDigest: fingerprint,
       wheelId: catalog.wheel.id,
       wheelVersion: catalog.wheel.version,
       activityId: plan.winner.id,
@@ -296,7 +328,7 @@ wheelRoutes.post("/spins", async (c) => {
   if (!inserted) {
     // Concurrent duplicate: the first writer wins and both callers see one result.
     const raced = await findSpin(env.DB, request.idempotencyKey);
-    if (!raced || raced.sessionId !== session.id || raced.requestDigest !== requestDigest) {
+    if (!raced || raced.sessionId !== session.id || raced.requestDigest !== fingerprint) {
       return c.json({ error: "spin_conflict" }, 409);
     }
     const activity = winnerFrom(catalog, raced);

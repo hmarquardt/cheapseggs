@@ -112,7 +112,7 @@ and the unchanged-boundary fallback.
 ### Idempotency and revocation
 
 - The client generates one UUID per spin attempt and reuses it on retry.
-- A repeat with the same session and the same request digest returns the stored result
+- A repeat with the same session and the same request fingerprint returns the stored result
   (`replayed: true`) and rebuilds a fresh wheel around it.
 - The same key with a **different** digest, or from a different guest session, is rejected with
   `409 spin_conflict`.
@@ -120,6 +120,17 @@ and the unchanged-boundary fallback.
   response is `409 spin_invalidated`. A previously authorized result never bypasses a withdrawal.
 - Concurrent duplicates resolve to one row: the loser of the insert race re-reads the winning row
   and returns the same activity.
+
+**The fingerprint is keyed.** It is `HMAC-SHA-256(SPIN_DIGEST_KEY, domain ‖ canonicalRequest)`, not a
+plain hash. The preimage is the boundary configuration, whose input space is small: roughly 1.2k
+ceiling combinations, 2^8 category exclusion sets and 2^5 supply sets. A database reader could
+otherwise test candidates offline and recover heat, opt-ins and hard-NOs for a 24-hour row, which is
+exactly the data this project promises not to keep. With a key, the stored value only proves
+"same request" to someone who holds the key. `GET /api/version` reports `spinDigestKeyed` and the
+production release check fails if it is `false`; without a key the Worker still serves spins with a
+domain-separated unkeyed hash rather than refusing service. Rotating the key (or deploying new
+digest logic) invalidates 24 hours of in-flight replays, which surfaces as the honest `409
+spin_conflict` the client already handles.
 
 ### Empty pools and hints
 
@@ -130,32 +141,66 @@ opt-ins or exclusions are never suggested.
 
 ## Guest session and retention
 
-| Property      | Behaviour                                                                                                                    |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Identifier    | 32 random bytes (hex), proposed by the browser, sent as `x-cheapseggs-guest`                                                 |
-| Storage       | Browser memory only — no cookie, no localStorage, no sessionStorage                                                          |
-| Server TTL    | 24 hours from first use; expired rows are purged in bounded batches                                                          |
-| Stored fields | session id, timestamps, a SHA-256 digest of the normalized request, the wheel and activity version, catalog revision, expiry |
-| Never stored  | heat, experimentation, energy, time, setting, supplies, opt-ins, exclusions, answers, performed activities                   |
-| Budget        | 200 spins per session, then `429 guest_budget_exhausted`                                                                     |
-| Reset         | `DELETE /api/v1/guest` deletes the session and cascades its spins                                                            |
-| Analytics     | none: `/play/` is not an allowlisted analytics path and no event is emitted                                                  |
+| Property      | Behaviour                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Identifier    | 32 random bytes (hex), proposed by the browser, sent as `x-cheapseggs-guest`                                                         |
+| Storage       | Browser memory only — no cookie, no localStorage, no sessionStorage                                                                  |
+| Server TTL    | 24 hours from first use; expired rows are purged in bounded batches                                                                  |
+| Stored fields | session id, timestamps, a keyed HMAC fingerprint of the normalized request, the wheel and activity version, catalog revision, expiry |
+| Never stored  | heat, experimentation, energy, time, setting, supplies, opt-ins, exclusions, answers, performed activities                           |
+| Budget        | 200 spins per session, then `429 guest_budget_exhausted`                                                                             |
+| Reset         | `DELETE /api/v1/guest` deletes the session and cascades its spins                                                                    |
+| Analytics     | none: `/play/` is not an allowlisted analytics path and no event is emitted                                                          |
 
 A client-proposed nonce is used instead of a server-issued token so a double-tapped spin can carry
 the same identity in both in-flight requests; the server upserts it under its own TTL and never
-trusts it for anything but its own idempotency and variety rows. Distributed per-IP rate limiting
-is still a pre-scale gate (see [Security](SECURITY.md)); the per-session budget is the only abuse
-control here.
+trusts it for anything but its own idempotency and variety rows.
+
+Expiry is enforced on read (`expires_at > now`) and cleaned opportunistically: every spin purges up
+to 200 expired spins and sessions. There is no scheduled job, so a site with no traffic keeps its
+expired rows until the next spin; they are unreadable in the meantime and cascade-delete with their
+session.
+
+## Abuse protection
+
+Two Cloudflare-native rate limit bindings sit in front of the public endpoints, configured in
+`wrangler.jsonc`/`wrangler.production.jsonc` and asserted by `npm run config:check`:
+
+| Binding              | Endpoint                    | Production limit | Key                 |
+| -------------------- | --------------------------- | ---------------- | ------------------- |
+| `SPIN_RATE_LIMITER`  | `POST /api/v1/spins`        | 40 / 60 s        | `spin` + client IP  |
+| `WHEEL_RATE_LIMITER` | `GET /api/v1/wheels/:wheel` | 120 / 60 s       | `wheel` + client IP |
+
+Properties and limits, stated plainly:
+
+- Counters live in Cloudflare's rate limiting infrastructure, keyed by the client address; nothing
+  about the visitor is written to D1 and no identifier is logged.
+- Limits are **approximate and per Cloudflare location**: counts update in the background and a
+  client hitting several locations gets the limit in each. This is a speed bump against bulk
+  automation, not a security control.
+- The check fails open. If the binding is missing or errors, spins continue and the per-session
+  budget (200) plus the 4 KiB body cap remain.
+- 40 spins/minute is far above human use and still allows a shared household address through a
+  burst; a stricter edge rule can be added later without changing the Worker.
+- Exceeding it returns `429 {"error":"rate_limited"}` with `retry-after: 60`, and the interface says
+  the lounge is busy rather than failing silently.
+- Local development uses deliberately loose limits (300/600) so browser tests are not coupled to the
+  limiter.
 
 ## Interface contract
 
-- Retro-casino marquee, SVG wheel with labelled wedges, bulbs and a fixed pointer.
+- Retro-casino marquee, SVG wheel with labelled wedges, bulbs and a fixed pointer. Before the first
+  spin the disc shows eight dim placeholder wedges and a `SPIN` hub instead of an empty circle.
+- Wedge captions are radial, anchored at the rim and flipped on the left half so none of them reads
+  upside down; they never cross into a neighbouring wedge. The geometry is asserted in a browser
+  test (captions inside the rim, the wedge under the pointer equals the winner marked in the list).
 - The wheel is decorative (`aria-hidden`); an ordered list next to it states the same shortlist in
   words and marks the winner with `aria-current`.
 - `prefers-reduced-motion: reduce` skips the spin entirely (0 ms) and announces the result
   immediately; the CSS also disables the bulb animation.
 - Sound is off by default, synthesised locally with Web Audio, never autoplays and can be switched
-  off again at any time.
+  off again at any time. When it is on, the spin plays decelerating ticks and a two-note landing;
+  every timer is cancelled when the spin ends, restarts or the page is left.
 - Focus moves to the result heading after each spin; the spin button is a real button (keyboard and
   switch-accessible) and the live region reports state.
 - Every result shows category, heat, duration, energy, preparation, supplies, accessibility
@@ -165,17 +210,19 @@ control here.
 
 ## Tests
 
-| Layer                                                            | Coverage                                                                                                                                                                                                                                            |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit                                                             | Request validation, context mapping, digest canonicalization, variety fallback, selection distribution/weights, shortlist invariants, caption clipping                                                                                              |
-| Integration (`node:sqlite` + real migrations/seeds through Hono) | Catalog endpoint, opt-in/exclusion/heat filtering, draft exclusion, replay, changed digest, concurrent duplicates, foreign session, withdrawal invalidation, empty pool + hints, session reuse, 24h expiry, reset, budget, invalid/cross-site input |
-| Browser                                                          | Acknowledgement, focus order, reduced-motion instant result, readable alternative, hide/undo/clear, keyboard-only spin, empty-menu message, axe on landing/lounge/privacy/result, no storage or cookies, desktop + iPhone viewports                 |
+| Layer                                                            | Coverage                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit                                                             | Request validation, context mapping, digest canonicalization, keyed vs unkeyed fingerprint, variety fallback, selection distribution/weights, shortlist invariants, caption clipping                                                                                                                                                                                                                              |
+| Integration (`node:sqlite` + real migrations/seeds through Hono) | Catalog endpoint, opt-in/exclusion/heat filtering, draft exclusion, replay, changed digest, concurrent duplicates, foreign session, withdrawal invalidation, empty pool + hints, session reuse, 24h expiry, reset, budget, invalid/cross-site input, stored fingerprint keying, rate-limited 429 before guest state exists, fail-open limiter, result/wedge identity, repeat avoidance that cannot widen the pool |
+| Browser                                                          | Acknowledgement, focus order, reduced-motion instant result, readable alternative, hide/undo/clear, keyboard-only spin, empty-menu message, axe on landing/lounge/privacy/result, no storage or cookies, desktop + iPhone viewports                                                                                                                                                                               |
 
 ## Known limitations
 
 - Catalog content is editorial, not professionally reviewed; heat 3 is unpublished.
 - Habanero is visible but locked, so `heat = 3` returns the same pool as spicy.
 - Guest state is per-tab-memory: a reload starts a new session (the old rows expire).
-- No server-side anti-automation beyond the per-session budget and body limits.
+- Anti-automation is approximate: per-location Cloudflare rate limits plus the per-session budget.
+  Neither stops a determined distributed attacker, and a shared address can exhaust the spin limit
+  for its neighbours until the minute rolls over.
 - No analytics for spins, deliberately; this milestone's product metrics require local moderated
   adult testing, which remains outstanding.

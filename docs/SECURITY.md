@@ -74,18 +74,35 @@ Before selling, counsel reviews digital-sales tax, refunds/withdrawal rights, au
   because nothing is cached.
 - Selection: client sends no candidate list, seed, weight or winner; crypto randomness
   with rejection sampling; duplicates resolved by a unique idempotency key.
-- Guest state: no cookie and no browser storage; only a request digest and catalog
-  reference are persisted for 24h; explicit reset; bounded per-session budget; bounded
-  lazy purge. No spin, boundary or result is logged or sent to analytics.
+- Guest state: no cookie and no browser storage; only a keyed request fingerprint and
+  catalog reference are persisted for 24h; explicit reset; bounded per-session budget;
+  bounded lazy purge. No spin, boundary or result is logged or sent to analytics.
+- Fingerprint privacy (M2.1, 2026-11-20): the persisted idempotency value is
+  `HMAC-SHA-256(SPIN_DIGEST_KEY, domain ‖ canonical request)`. The preimage is a boundary
+  configuration with a small, enumerable input space, so an unkeyed hash would let a
+  database or backup reader recover heat, opt-ins and hard-NOs offline. With a key it only
+  proves "same request". `GET /api/version` reports `spinDigestKeyed`; the production
+  release check fails on `false`; a missing key degrades to a domain-separated unkeyed hash
+  rather than an outage, and that state is visible.
+- Abuse protection (M2.1, 2026-11-20): Cloudflare rate limit bindings
+  (`SPIN_RATE_LIMITER` 40/60 s, `WHEEL_RATE_LIMITER` 120/60 s, keyed by client address)
+  guard the two public endpoints. Counters stay in Cloudflare infrastructure, no address or
+  identifier reaches D1 or logs, and the check fails open. Limits are approximate and
+  per-location, so they are a speed bump, not a security control; the per-session budget
+  and the 4 KiB body cap remain the backstop. Exceeding them returns
+  `429 rate_limited` with `retry-after: 60`.
 - Request boundary: same-origin + Fetch-Metadata check, JSON-only, 4 KiB cap, strict
   schema, unknown category/supply ids rejected, generic error codes.
-- Verified by 35 automated unit/integration cases (including concurrent duplicates,
-  changed-digest conflicts, foreign sessions, expiry, reset, budget and withdrawal),
-  16 browser checks across desktop/mobile (axe, focus, reduced motion, keyboard,
-  no cookies/storage) and a production smoke that re-runs the gate assertions live.
+- Verified by automated unit/integration cases (including concurrent duplicates,
+  changed-digest conflicts, foreign sessions, expiry, reset, budget, withdrawal, keyed vs
+  unkeyed fingerprints, rate-limited refusal before any guest row exists, fail-open limiter,
+  result/wedge identity and repeat avoidance that cannot widen the pool), browser checks
+  across desktop/mobile (axe, focus, reduced motion, keyboard, wheel geometry, no
+  cookies/storage) and a production smoke that re-runs the gate assertions live and rejects
+  an unkeyed or unlimited release.
 
-Open M2-era gates: distributed rate limiting, professional content review for heat 3,
-moderated adult usability testing, and any authentication or partner workflow.
+Open M2-era gates: professional content review for heat 3, moderated adult usability
+testing, and any authentication or partner workflow.
 
 ### Chemistry Check extension (2026-11-20)
 

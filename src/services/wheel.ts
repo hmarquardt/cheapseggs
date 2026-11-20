@@ -80,9 +80,49 @@ export function randomToken(bytes = 32): string {
   return [...buffer].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function hex(bytes: ArrayBuffer | Uint8Array): string {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  return [...view].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export async function digest(value: string): Promise<string> {
-  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+}
+
+/** Shortest secret we accept for the idempotency HMAC; anything shorter is ignored. */
+export const MIN_DIGEST_KEY_LENGTH = 32;
+export const REQUEST_DIGEST_DOMAIN = "cheapseggs.spin.v1";
+
+/**
+ * Idempotency fingerprint of a spin request.
+ *
+ * The preimage is a boundary configuration, which is exactly the class of data this
+ * project promises not to keep. Its input space is small enough to enumerate (a few
+ * thousand ceiling combinations, 2^8 exclusion sets, 2^5 supply sets), so an unkeyed
+ * hash would let a database reader recover heat, opt-ins and hard-NOs by brute force.
+ * Keying it with a Worker secret removes that inference; the digest then only proves
+ * "same request" to a holder of the key. Without a configured key the fallback stays
+ * unkeyed, which `/api/version` reports so a release can refuse to ship that state.
+ */
+export async function requestDigest(
+  secret: string | undefined,
+  canonical: string,
+): Promise<string> {
+  const message = new TextEncoder().encode(`${REQUEST_DIGEST_DOMAIN}\n${canonical}`);
+  if (!requestDigestKeyed(secret)) return hex(await crypto.subtle.digest("SHA-256", message));
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  return hex(await crypto.subtle.sign("HMAC", key, message));
+}
+
+/** True when replays are protected by a keyed digest rather than a plain hash. */
+export function requestDigestKeyed(secret: string | undefined): boolean {
+  return typeof secret === "string" && secret.length >= MIN_DIGEST_KEY_LENGTH;
 }
 
 /** Supplier labels are editorial; which supplies are offered comes from served rows. */

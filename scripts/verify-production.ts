@@ -20,11 +20,16 @@ const version = (await versionResponse.json()) as {
   revision: string;
   workerVersion: string;
   environment: string;
+  spinDigestKeyed: boolean;
+  rateLimits: { spin: boolean; wheel: boolean };
 };
 if (expected) assert.equal(version.revision, expected);
 assert.match(version.revision, /^[a-f0-9]{40}$/);
 assert.equal(version.environment, "production");
 assert.ok(version.workerVersion);
+// Privacy and abuse gates: an unkeyed fingerprint or a missing limiter is a failed release.
+assert.equal(version.spinDigestKeyed, true, "spin fingerprints must be HMAC-keyed in production");
+assert.deepEqual(version.rateLimits, { spin: true, wheel: true }, "rate limiting bindings");
 evidence.push({ check: "release", result: version });
 for (const path of ["/api/health", "/api/ready", "/api/v1/catalog/preview"]) {
   const response = await get(path);

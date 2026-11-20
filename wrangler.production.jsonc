@@ -24,6 +24,18 @@
       "migrations_dir": "migrations"
     }
   ],
+  "ratelimits": [
+    {
+      "name": "SPIN_RATE_LIMITER",
+      "namespace_id": "202611201",
+      "simple": { "limit": 40, "period": 60 }
+    },
+    {
+      "name": "WHEEL_RATE_LIMITER",
+      "namespace_id": "202611202",
+      "simple": { "limit": 120, "period": 60 }
+    }
+  ],
   "vars": { "APP_ENV": "production", "DEPLOY_REVISION": "unset" },
   "version_metadata": { "binding": "WORKER_VERSION" },
   "observability": { "enabled": false }

@@ -156,6 +156,22 @@
               }
             }
           },
+          "429": {
+            "description": "Approximate per-location rate limit exceeded (rate_limited)",
+            "headers": {
+              "retry-after": {
+                "schema": { "type": "string" },
+                "description": "Seconds until the window resets"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Database unavailable",
             "content": {
@@ -346,7 +362,13 @@
             }
           },
           "429": {
-            "description": "Guest spin budget exhausted",
+            "description": "Guest spin budget exhausted (guest_budget_exhausted) or the approximate per-location Cloudflare rate limit was exceeded (rate_limited, with a retry-after header)",
+            "headers": {
+              "retry-after": {
+                "schema": { "type": "string" },
+                "description": "Present for rate_limited; seconds until the window resets"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -361,6 +383,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "operationId": "version",
+        "summary": "Release identity and non-secret configuration health flags",
+        "responses": {
+          "200": {
+            "description": "Release identity plus spinDigestKeyed and rateLimits health flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "service",
+                    "revision",
+                    "workerVersion",
+                    "environment",
+                    "spinDigestKeyed",
+                    "rateLimits"
+                  ],
+                  "properties": {
+                    "service": { "const": "cheapseggs" },
+                    "revision": { "type": "string" },
+                    "workerVersion": { "type": ["string", "null"] },
+                    "environment": { "type": "string" },
+                    "spinDigestKeyed": {
+                      "type": "boolean",
+                      "description": "The stored spin fingerprint is HMAC-keyed rather than an unkeyed hash"
+                    },
+                    "rateLimits": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["spin", "wheel"],
+                      "properties": {
+                        "spin": { "type": "boolean" },
+                        "wheel": { "type": "boolean" }
+                      }
+                    }
+                  }
                 }
               }
             }

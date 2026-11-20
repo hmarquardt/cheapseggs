@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { PUBLIC_PATHS, SITE_JSON_LD_HASH, SITE_ORIGIN } from "../config/site";
+import { requestDigestKeyed } from "../services/wheel";
 import type { Bindings } from "./bindings";
 import { wheelRoutes } from "./wheel";
 
@@ -91,6 +92,12 @@ app.get("/api/version", (c) =>
     revision: c.env?.DEPLOY_REVISION ?? "local",
     workerVersion: c.env?.WORKER_VERSION?.id ?? null,
     environment: c.env?.APP_ENV ?? "local",
+    // Non-secret health signal: a release refuses to ship unkeyed spin fingerprints.
+    spinDigestKeyed: requestDigestKeyed(c.env?.SPIN_DIGEST_KEY),
+    rateLimits: {
+      spin: Boolean(c.env?.SPIN_RATE_LIMITER),
+      wheel: Boolean(c.env?.WHEEL_RATE_LIMITER),
+    },
   }),
 );
 app.get("/api/ready", async (c) => {
