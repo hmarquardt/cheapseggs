@@ -2,21 +2,21 @@
 
 ## M3B experience release — 2026-11-20
 
-| Evidence | Observed |
-| --- | --- |
-| Implemented release | `a3ab0d22c8b822b3e13fa5ad13298a340e672f86` (product commit `f56f9c4`; two browser-test robustness follow-ups) |
-| GitHub pipeline | [44832066386](https://github.com/hmarquardt/cheapseggs/actions/runs/44832066386): validate, deploy and independent production smoke all succeeded |
-| Worker | `6b46922f-40a0-4096-8909-8a228e145095`; `/api/version` revision matches the pushed commit |
-| Migration | `0005_experiences.sql` applied remotely (wheel presentation/draw columns, category blurbs, paired spin companions, recipe template/step extensions) |
-| Public catalog | `/api/v1/wheels/misfortune` reports 109 reviewed ideas; heat 3 unavailable; four opt-in categories (touch, senses, make-believe, playful power) |
-| Wheel directory | `/api/v1/wheels` lists Misfortune (109 segments), Foreplay, Double Trouble (pair) and Dealer's Choice (category); Foreplay reports zero spicy segments |
-| Pair/category draws | Live Double Trouble returned two distinct compatible ideas inside 240 minutes; Dealer's Choice returned the category it displayed. Restricted ids absent |
-| Cookbook | `/api/v1/recipes` returns 12 published recipes with `cookbook+…` revision; `/api/v1/recipes/slow-cooker` 200; `/api/v1/recipes/draft-silk-and-ice` and `/api/v1/content/draft-silk-and-ice/1` 404 |
-| Date Night | Live plan (`playful/medium/curious/hour/home`) returned `Leftovers Can Be Delicious`, 45 planned of 60 minutes, slots preparation → warm-up → main → finale, marker `date-night-plan-not-consent` |
-| Pages | `/date-night/` and `/recipes/` 200 with their own hashed bundles, indexable metadata and a no-JavaScript fallback; `/play/` 200 noindex; sitemap has 9 public URLs and omits `/play/` and `/api/` |
-| Boundaries | No `draft-`/restricted title in served HTML or bundles; new CSP hash for the updated JSON-LD; HSTS, no-referrer, DENY framing and restricted Permissions-Policy present on the new pages |
-| Automated checks | 144 unit/integration assertions in 12 files; 32 desktop/mobile browser cases including axe, reduced motion, keyboard-only spin, Date Night compose/reroll/re-time, cookbook browse/detail and mobile overflow |
-| Evidence files | CI artifact `production-verification/production-smoke.json`; local `artifacts/production-smoke.json` from the independent re-check |
+| Evidence            | Observed                                                                                                                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Implemented release | `a3ab0d22c8b822b3e13fa5ad13298a340e672f86` (product commit `f56f9c4`; two browser-test robustness follow-ups)                                                                                                 |
+| GitHub pipeline     | [44832066386](https://github.com/hmarquardt/cheapseggs/actions/runs/44832066386): validate, deploy and independent production smoke all succeeded                                                             |
+| Worker              | `6b46922f-40a0-4096-8909-8a228e145095`; `/api/version` revision matches the pushed commit                                                                                                                     |
+| Migration           | `0005_experiences.sql` applied remotely (wheel presentation/draw columns, category blurbs, paired spin companions, recipe template/step extensions)                                                           |
+| Public catalog      | `/api/v1/wheels/misfortune` reports 109 reviewed ideas; heat 3 unavailable; four opt-in categories (touch, senses, make-believe, playful power)                                                               |
+| Wheel directory     | `/api/v1/wheels` lists Misfortune (109 segments), Foreplay, Double Trouble (pair) and Dealer's Choice (category); Foreplay reports zero spicy segments                                                        |
+| Pair/category draws | Live Double Trouble returned two distinct compatible ideas inside 240 minutes; Dealer's Choice returned the category it displayed. Restricted ids absent                                                      |
+| Cookbook            | `/api/v1/recipes` returns 12 published recipes with `cookbook+…` revision; `/api/v1/recipes/slow-cooker` 200; `/api/v1/recipes/draft-silk-and-ice` and `/api/v1/content/draft-silk-and-ice/1` 404             |
+| Date Night          | Live plan (`playful/medium/curious/hour/home`) returned `Leftovers Can Be Delicious`, 45 planned of 60 minutes, slots preparation → warm-up → main → finale, marker `date-night-plan-not-consent`             |
+| Pages               | `/date-night/` and `/recipes/` 200 with their own hashed bundles, indexable metadata and a no-JavaScript fallback; `/play/` 200 noindex; sitemap has 9 public URLs and omits `/play/` and `/api/`             |
+| Boundaries          | No `draft-`/restricted title in served HTML or bundles; new CSP hash for the updated JSON-LD; HSTS, no-referrer, DENY framing and restricted Permissions-Policy present on the new pages                      |
+| Automated checks    | 144 unit/integration assertions in 12 files; 32 desktop/mobile browser cases including axe, reduced motion, keyboard-only spin, Date Night compose/reroll/re-time, cookbook browse/detail and mobile overflow |
+| Evidence files      | CI artifact `production-verification/production-smoke.json`; local `artifacts/production-smoke.json` from the independent re-check                                                                            |
 
 Implemented: 65 new non-explicit catalog ideas in two new categories (flirting/teasing and playful power), 11 restricted adult drafts kept unpublished, four public wheels on one eligibility engine, the complete Date Night Machine with server-validated reroll/replace/re-time/restart, twelve original cookbook recipes, and public pages/navigation that describe what actually works.
 
