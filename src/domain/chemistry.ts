@@ -65,6 +65,7 @@ export type BandReason =
   | "intimacy_not_mutually_shared"
   | "both_directions_not_weighted"
   | "no_shared_answers"
+  | "outside_approved_scope"
   | "report_withheld";
 
 export type HardSignal =
@@ -205,6 +206,7 @@ function isComparable(
 export function evaluateCompatibility(
   first: AssessmentSubmission,
   second: AssessmentSubmission,
+  options: { dimensions?: readonly ChemistryDimensionId[] } = {},
 ): CompatibilityEvaluation {
   const manifest = MANIFESTS[first.depth];
   const totals = new Map<ChemistryDimensionId, DimensionTotals>(
@@ -235,6 +237,15 @@ export function evaluateCompatibility(
   const dimensions: DimensionOutcome[] = DIMENSIONS.map((dimension) => {
     const entry = totals.get(dimension.id) ?? emptyTotals();
     const accepted = entry.acceptedDifferences > 0;
+    if (options.dimensions && !options.dimensions.includes(dimension.id)) {
+      return {
+        dimension: dimension.id,
+        band: null,
+        reason: "outside_approved_scope",
+        comparable: 0,
+        hasAcceptedDifferences: false,
+      };
+    }
     if (dimension.id === "intimacy" && !intimacyMutual) {
       return {
         dimension: dimension.id,

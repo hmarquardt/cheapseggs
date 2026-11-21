@@ -23,4 +23,13 @@ export type Bindings = {
    */
   SPIN_RATE_LIMITER?: RateLimit;
   WHEEL_RATE_LIMITER?: RateLimit;
+  /** Private Chemistry Check is closed unless this and the review flag are explicitly set. */
+  CHEMISTRY_PRIVATE_ENABLED?: string;
+  /** Second, independent switch recorded only after the external security audit approves. */
+  CHEMISTRY_PRIVATE_REVIEW_APPROVED?: string;
+  /** Base64url 32-byte AES-256-GCM key; never the wheel digest or auth secret. */
+  CHEMISTRY_ENVELOPE_KEY?: string;
+  CHEMISTRY_ENVELOPE_KEY_VERSION?: string;
+  /** JSON object of older key versions kept for decryption during rotation. */
+  CHEMISTRY_ENVELOPE_PREVIOUS_KEYS?: string;
 };

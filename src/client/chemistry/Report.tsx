@@ -16,6 +16,8 @@ function reasonText(reason: BandReason): string {
       return "Not shared — both people must opt in";
     case "both_directions_not_weighted":
       return "Neither direction weighted these answers";
+    case "outside_approved_scope":
+      return "Not included in the mutually approved scope";
     case "report_withheld":
       return "Withheld until the report has enough coverage";
     default:

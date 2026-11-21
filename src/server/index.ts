@@ -4,6 +4,7 @@ import { PUBLIC_PATHS, SITE_JSON_LD_HASH, SITE_ORIGIN } from "../config/site";
 import { requestDigestKeyed } from "../services/wheel";
 import { accountRoutes } from "./account";
 import type { Bindings } from "./bindings";
+import { chemistryRoutes } from "./chemistry-check";
 import { contentRoutes } from "./content";
 import { dateNightRoutes } from "./date-night";
 import { recipeRoutes } from "./recipes";
@@ -123,6 +124,7 @@ app.get("/api/v1/catalog/preview", async (c) => {
   return c.json({ items: results, catalogVersion: "sample-1" });
 });
 app.route("/", accountRoutes);
+app.route("/api/v1", chemistryRoutes);
 app.route("/api/v1", contentRoutes);
 app.route("/api/v1", dateNightRoutes);
 app.route("/api/v1", recipeRoutes);

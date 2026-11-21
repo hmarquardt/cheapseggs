@@ -45,6 +45,12 @@ assert.deepEqual(Object.keys(production.vars).sort(), [
   "AUTH_EMAIL_FROM",
   "DEPLOY_REVISION",
 ]);
+// Private Chemistry Check must ship closed: no gate, review or encryption key in config vars.
+assert.equal(production.vars.CHEMISTRY_PRIVATE_ENABLED, undefined);
+assert.equal(production.vars.CHEMISTRY_PRIVATE_REVIEW_APPROVED, undefined);
+assert.equal(production.vars.CHEMISTRY_ENVELOPE_KEY, undefined);
+assert.equal(production.vars.CHEMISTRY_ENVELOPE_KEY_VERSION, undefined);
+assert.equal(production.vars.CHEMISTRY_ENVELOPE_PREVIOUS_KEYS, undefined);
 assert.match(ANALYTICS_SITE_ID, /^as_[A-Za-z0-9]{22}$/);
 assert.equal(
   SITE_JSON_LD_HASH,
