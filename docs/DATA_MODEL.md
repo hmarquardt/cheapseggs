@@ -105,7 +105,17 @@ Triggers advance relationship `consent_epoch` on private preference insert/updat
 
 [D1 batch semantics](https://developers.cloudflare.com/d1/worker-api/d1-database/) support transactional batches. There is no assumed interactive transaction spanning arbitrary Worker awaits. Use prepared statements/bindings and checked affected-row counts. Avoid read-then-write races across primary/replica calls. No selection endpoint is implemented yet, so conditional-claim persistence is designed, not claimed complete.
 
-## Planned Chemistry Check entities (no migration yet)
+## Chemistry Check implementation and planned extensions
+
+C1.1 now implements `chemistry_assessments`, `chemistry_participants`, `chemistry_invitations`,
+`chemistry_release_approvals`, `chemistry_results`, `chemistry_pair_releases` and `chemistry_budgets` in
+0007/0008, with audit insertion/expiry guards in 0009. See the [independent audit](CHEMISTRY_CHECK_SECURITY_AUDIT.md)
+and [restore procedure](CHEMISTRY_CHECK_RESTORE.md). No reusable templates, credits or couple membership
+are implemented by this scope. The conceptual names below describe future structure; the actual table
+names above and migrations are authoritative for the gated backend. Hourly bounded Worker maintenance is
+implemented, with operational capacity/restore continuity still blocking private beta.
+
+### Original entity proposal (historical)
 
 Added 2026-11-20; [full specification](CHEMISTRY_CHECK.md). Existing migrations/seed/implemented tables above are unchanged. Model this as independent assessment scope, not a new kind of `couples`, membership or couple invitation. The names/columns below are a migration plan requiring review before implementation.
 

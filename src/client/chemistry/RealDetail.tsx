@@ -253,8 +253,8 @@ export function RealAssessmentDetail(props: RealDetailProps): JSX.Element {
             </button>
           </div>
           <p class="chemistry-note">
-            Submitting sends only an encrypted snapshot. It does not share any answer and does not
-            approve a report.
+            The server encrypts your submitted snapshot for storage. It does not share any answer
+            and does not approve a report.
           </p>
         </>
       ) : null}

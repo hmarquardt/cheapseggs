@@ -193,9 +193,9 @@ function isComparable(
   if (!first || !second) return false;
   if (first.questionVersion !== question.version || second.questionVersion !== question.version)
     return false;
-  if (!answered(first) || !answered(second)) return false;
-  // Scope follows disclosure authorization: private-only items are never comparable.
+  // Check disclosure before examining answer content or state.
   if (first.disclosure !== "summary" || second.disclosure !== "summary") return false;
+  if (!answered(first) || !answered(second)) return false;
   return first.accept !== null && second.accept !== null;
 }
 
@@ -301,7 +301,15 @@ export function evaluateCompatibility(
     depth: first.depth,
     coverage: assessed >= REPORT_MIN_DIMENSIONS ? "sufficient" : "insufficient",
     dimensions,
-    hardConflict: evaluateHardConflict(manifest.questions, firstById, secondById),
+    hardConflict: evaluateHardConflict(
+      manifest.questions.filter(
+        (question) =>
+          (!options.dimensions || options.dimensions.includes(question.dimension)) &&
+          (question.dimension !== "intimacy" || intimacyMutual),
+      ),
+      firstById,
+      secondById,
+    ),
     hardSignalAuthorized: first.hardSignal && second.hardSignal,
   };
 }
@@ -322,7 +330,7 @@ function evaluateHardConflict(
       unevaluable += 1;
       return;
     }
-    if (!partner || !answered(partner) || partner.disclosure !== "summary") {
+    if (!partner || partner.disclosure !== "summary" || !answered(partner)) {
       unevaluable += 1;
       return;
     }

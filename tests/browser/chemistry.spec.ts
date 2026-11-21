@@ -81,3 +81,68 @@ test("the sample report is coarse, private by default and free of raw answers", 
   await expect(page.getByRole("button", { name: "Start over" })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
+
+test("invitation fragments leave the address bar and revocation actions send the required headers", async ({
+  page,
+}) => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  const view = {
+    id,
+    depth: 25,
+    manifestId: "chemistry-25-v1",
+    status: "collecting",
+    createdAt: 1,
+    acceptedAt: 2,
+    assessmentExpiresAt: 9999999999,
+    reportExpiresAt: null,
+    role: "creator",
+    own: { submitted: true, submissionRevision: 1, draftRevision: 1, approved: false },
+    invitation: null,
+    reportAvailable: false,
+  };
+  const requests: { method: string; path: string; action: string | undefined }[] = [];
+  await page.route("**/api/account", (route) => route.fulfill({ json: { account: {} } }));
+  await page.route("**/api/v1/chemistry-check/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (request.method() !== "GET") {
+      requests.push({
+        method: request.method(),
+        path,
+        action: request.headers()["x-cheapseggs-action"],
+      });
+      expect(request.headers()["x-cheapseggs-action"]).toBe("chemistry");
+      expect(request.headers()["content-type"]).toBe("application/json");
+    }
+    if (path.endsWith("/status")) return route.fulfill({ json: { available: true } });
+    if (path.endsWith("/draft"))
+      return route.fulfill({ status: 404, json: { error: "not_found" } });
+    if (path.endsWith("/assessments") && request.method() === "GET")
+      return route.fulfill({ json: { assessments: [view] } });
+    if (path.endsWith(id) && request.method() === "GET")
+      return route.fulfill({ json: { assessment: view } });
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/chemistry/#invite=synthetic-browser-test-only-token");
+  await expect(page).toHaveURL(/\/chemistry\/$/);
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Private assessment", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Withdraw assessment", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Open", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("button", { name: "Delete assessment data", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Open", exact: true })).toBeVisible();
+  expect(requests).toEqual([
+    {
+      method: "POST",
+      path: `/api/v1/chemistry-check/assessments/${id}/withdraw`,
+      action: "chemistry",
+    },
+    { method: "DELETE", path: `/api/v1/chemistry-check/assessments/${id}`, action: "chemistry" },
+  ]);
+  expect(
+    await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })),
+  ).toEqual({ local: 0, session: 0 });
+});

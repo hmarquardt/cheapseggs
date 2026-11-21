@@ -77,7 +77,7 @@ npm run test:e2e     # local Worker, desktop + mobile, accessibility and API smo
 src/client/       Preact shell, styles, reusable CSS tokens
 src/domain/       validated content types, eligibility, randomness
 src/services/     identity and entitlement boundaries
-src/server/       Worker HTTP adapter; no intimate-data endpoints
+src/server/       Worker HTTP adapter; private assessment routes gated closed
 migrations/      ordered SQL, domain/commerce foundation
 seeds/           three safe fixtures, explicit local/production files
 scripts/         fresh-database verification
@@ -90,3 +90,8 @@ docs/            product, commercial research, architecture, ADRs
 ## Before a launch
 
 Read [Roadmap](docs/ROADMAP.md). The account foundation is implemented; it does not open private product features or verified-adult content. The next product work is partner matching and Chemistry Check, which require the private-data release gate; the restricted adult catalog stays unpublished until the age-assurance and content-review gates pass. Private partner data requires the identity/privacy/deletion release gate; purchases require explicit processor suitability and approval. Intended sensitive-feature markets, merchant entity, tax treatment and final private-service legal documents remain decisions. Do not submit merchant applications or contact anyone on the user's behalf without instructions.
+
+C1.1 independent audit: [findings and beta decision](docs/CHEMISTRY_CHECK_SECURITY_AUDIT.md),
+[quarantined restore/key operations](docs/CHEMISTRY_CHECK_RESTORE.md). Confirmed security races and
+scope-disclosure defects are corrected; real collection remains disabled and private beta is **not
+approved** pending operational and founder gates. No production encryption key is provisioned.

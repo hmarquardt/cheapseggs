@@ -1,3 +1,27 @@
+# C1.1 independent audit checkpoint (2026-11-20)
+
+The [independent Chemistry Check security audit](CHEMISTRY_CHECK_SECURITY_AUDIT.md) supersedes the
+implementation handoff's security claims. It reproduces and corrects final-release scope binding,
+revocation/write races, hard-signal disclosure, concurrent-claim/release teardown, retention, invitation
+capacity and private UI revocation defects. **Private beta is not approved.** Both activation flags and
+the production envelope key remain absent. No real private collection, production key or restore is
+part of this assignment.
+
+Baseline `39374a900b7d21e9f3a9356edae528ed5430aeef` was verified on production as Worker
+`9a3eeb54-6785-44e0-9a24-71338c6db465`, with `chemistryPrivate: false`; read-only aggregate D1 inspection
+found zero assessments, encrypted participants and reports. Baseline checks passed 222 tests. Seven
+new adversarial tests all failed against that baseline on actual local D1, then passed after corrections.
+Remediation validation passes 253 unit/HTTP/local-D1 tests, 40 desktop/mobile browser tests, fresh
+migrations/FKs, both compiled Worker scenarios and a 364-case partial-configuration gate matrix.
+
+The release containing this checkpoint must pass the normal Actions validate → deploy → live smoke
+pipeline. Its `production-verification` artifact records the exact commit/Worker/version timestamp,
+including 91 production-disabled route/method probes. Current identity always comes from `/api/version`
+and Cloudflare's version tag, not historical identifiers in this file. The audit's completion delivery
+records independently observed release evidence after that pipeline; this checkpoint alone is not a
+claim that a future deployment succeeded. Hourly native Worker cleanup is added without a new service;
+external deletion-ledger continuity, restore reconciliation and purge monitoring remain beta gates.
+
 # Public launch evidence
 
 ## Chemistry Check private backend release — 2026-11-20 (production-disabled)

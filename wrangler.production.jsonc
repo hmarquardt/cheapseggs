@@ -66,5 +66,8 @@
       "name": "ACCOUNT_EMAIL",
       "allowed_sender_addresses": ["accounts@cheapseggs.com"]
     }
-  ]
+  ],
+  "triggers": {
+    "crons": ["17 * * * *"]
+  }
 }

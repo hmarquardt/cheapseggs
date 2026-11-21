@@ -52,6 +52,7 @@ describe("private envelope cryptography", () => {
     const second = await sealEnvelope(JSON.stringify({ hello: "world" }), aad, keyring);
     expect(first.envelope).not.toBe(second.envelope);
     expect(await openEnvelope(first.envelope, aad, keyring)).toBe('{"hello":"world"}');
+    await expect(openEnvelope(first.envelope, aad, keyring, 2)).rejects.toThrow("envelope_invalid");
     const parsed = JSON.parse(first.envelope) as { kv: number; ct: string; iv: string };
     expect(parsed.kv).toBe(1);
     expect(parsed.iv.length).toBeGreaterThan(10);
@@ -447,5 +448,86 @@ describe("private API gate", () => {
     const response = await call(env, "/api/v1/chemistry-check/status");
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "not_found" });
+  });
+});
+
+describe("C1.1 envelope substitution and safe retirement", () => {
+  it("binds every AAD field and rejects truncated or malformed envelopes", async () => {
+    const env = environment();
+    const keyring = await loadChemistryKeyring(env);
+    if (!keyring) throw new Error("test key missing");
+    const parts = ["submission", "assessment", "participant", "9", "manifest"];
+    const aad = envelopeAad(parts);
+    const sealed = await sealEnvelope('{"synthetic":true}', aad, keyring);
+    for (let i = 0; i < parts.length; i++) {
+      const changed = [...parts];
+      changed[i] = `different-${i}`;
+      await expect(openEnvelope(sealed.envelope, envelopeAad(changed), keyring)).rejects.toThrow();
+    }
+    const record = JSON.parse(sealed.envelope) as { ct: string; iv: string };
+    for (const invalid of [
+      "",
+      "{",
+      "null",
+      "[]",
+      sealed.envelope.slice(0, -1),
+      JSON.stringify({ ...record, ct: record.ct.slice(0, -3) }),
+      JSON.stringify({ ...record, iv: record.iv.slice(0, -2) }),
+      JSON.stringify({ ...record, alg: "other" }),
+      JSON.stringify({ ...record, v: 2 }),
+    ]) {
+      await expect(openEnvelope(invalid, aad, keyring)).rejects.toThrow();
+    }
+    expect(
+      await loadChemistryKeyring(environment({ CHEMISTRY_ENVELOPE_KEY_VERSION: "0" })),
+    ).toBeNull();
+    expect(
+      await loadChemistryKeyring(environment({ CHEMISTRY_ENVELOPE_PREVIOUS_KEYS: "[]" })),
+    ).toBeNull();
+  });
+
+  it("reseals synthetic payloads before retiring the old test key without loss", async () => {
+    const oldKey = keyBytes(4);
+    const newKey = keyBytes(5);
+    const old = await loadChemistryKeyring(environment({ CHEMISTRY_ENVELOPE_KEY: oldKey }));
+    const rotated = await loadChemistryKeyring(
+      environment({
+        CHEMISTRY_ENVELOPE_KEY: newKey,
+        CHEMISTRY_ENVELOPE_KEY_VERSION: "2",
+        CHEMISTRY_ENVELOPE_PREVIOUS_KEYS: JSON.stringify({ "1": oldKey }),
+      }),
+    );
+    const retired = await loadChemistryKeyring(
+      environment({ CHEMISTRY_ENVELOPE_KEY: newKey, CHEMISTRY_ENVELOPE_KEY_VERSION: "2" }),
+    );
+    if (!old || !rotated || !retired) throw new Error("test keys missing");
+    for (const purpose of ["draft", "submission", "report"]) {
+      const aad = envelopeAad([purpose, "assessment", "owner-or-epoch", "revision-or-scope"]);
+      const sealed = await sealEnvelope('{"test":1}', aad, old);
+      const migrated = await sealEnvelope(
+        await openEnvelope(sealed.envelope, aad, rotated),
+        aad,
+        rotated,
+      );
+      expect(migrated.keyVersion).toBe(2);
+      expect(await openEnvelope(migrated.envelope, aad, retired)).toBe('{"test":1}');
+      await expect(openEnvelope(sealed.envelope, aad, retired)).rejects.toThrow(
+        "envelope_key_unavailable",
+      );
+    }
+  });
+
+  it("unknown environment and partially enabled flags fail closed", () => {
+    expect(chemistryPrivateEnabled(environment({ APP_ENV: "staging" }))).toBe(false);
+    expect(
+      chemistryPrivateEnabled(
+        environment({ APP_ENV: "", CHEMISTRY_PRIVATE_REVIEW_APPROVED: "true" }),
+      ),
+    ).toBe(false);
+    expect(
+      chemistryPrivateEnabled(
+        environment({ APP_ENV: "production", CHEMISTRY_PRIVATE_REVIEW_APPROVED: "TRUE" }),
+      ),
+    ).toBe(false);
   });
 });

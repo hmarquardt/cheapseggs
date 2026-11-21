@@ -1,5 +1,10 @@
 # Chemistry Check private backend — security handoff (C1.1, 2026-11-20)
 
+**Audit supersession:** [the independent C1.1 audit](CHEMISTRY_CHECK_SECURITY_AUDIT.md) found
+security defects despite the baseline tests. Its corrections and [quarantined restore runbook](CHEMISTRY_CHECK_RESTORE.md)
+supersede the original claims below. **Private beta is not approved.** No production key or activation
+flag is provisioned by the audit. Historical baseline claims below are retained only where still accurate.
+
 Status: **implemented, tested locally, production-disabled**. Real two-person collection, encrypted
 persistence and mutual report release are gated off and must remain off until an independent review
 approves this package and both activation flags are deliberately set.
@@ -15,7 +20,7 @@ approves this package and both activation flags are deliberately set.
   IDs, approval forgery, scope widening, races between release/withdrawal/deletion, backup restore without
   keys, and inference from coarse summaries.
 - Residual risk: coarse bands reveal aggregate information to a participant who knows their own answers.
-  Rate limits and the 30-day cooldown reduce but cannot eliminate inference or coercion. No endpoint exposes
+  Rate limits and the 30-day cooldown reduce but cannot eliminate inference or coercion. Labels do not verify identity. No endpoint exposes
   counterpart progress, skipped items or directional scores.
 
 ## 2. New D1 tables and migrations
@@ -56,7 +61,7 @@ The creator supplies a 1–40 character label; accepting requires the normalized
 32-byte token appears once in the response and is placed in the URL fragment (`#invite=`), never sent as a
 request parameter. Only its SHA-256 digest is stored. Accept runs one D1 batch: conditional pending/
 unexpired/non-self consume → conditional slot-2 insert → conditional `collecting` transition. Any
-zero-change result terminates the assessment. Concurrent claims admit exactly one; replay, third-account,
+zero-change result denies that request without terminating a competing successful binding. Concurrent claims admit exactly one; replay, third-account,
 self, expired, revoked, wrong-label and duplicate-pair claims all return the same `404 not_found`.
 Revocation is neutral and clears envelopes.
 
@@ -93,15 +98,16 @@ unchanged wheel, recipe, Date Night and account suites verify no intercepting re
 ## 8. Expiration, deletion and restore
 
 - Invitation 48h; assessment 14d from acceptance; report 30d from acceptance; terminal purge grace 24h; pair
-  cooldown 30d. Middleware runs bounded opportunistic cleanup per private request: 20 assessments per
-  category, 20 pending invitations, 100 budgets. Production collection stays disabled until a scheduled or
-  operationally verified purge job is approved as an additional control.
+  cooldown 30d. The audit adds hourly bounded Worker maintenance and authenticated opportunistic cleanup,
+  including abandoned invitation drafts and cooldown-ledger expiry. Actual schedule execution,
+  overdue-age monitoring and capacity must be evidenced before beta.
 - Withdrawal, decline and expiry clear both participants' draft and submission envelopes, delete approvals
   and results, revoke pending invitations and leave a minimal status/purge row. Account deletion removes the
   assessment entirely through trigger and cascade.
-- Backup restore: restored ciphertext without the matching key version fails closed and reads return 404.
-  Restored assessments must still satisfy current session, participant, epoch and deadline checks, so a
-  restore cannot revive a deleted report without the deleted result row.
+- Backup restore: the audit proved that a snapshot containing the old session, grant, report and retained
+  key **does resurrect access**. Never route an unreconciled restored database. The conservative runbook
+  discards all restored assessments/sessions/challenges and replays a complete external account-deletion
+  ledger; missing ledger coverage keeps the system offline. Restore/cooldown operations remain beta gates.
 
 ## 9. Abuse controls and limitations
 

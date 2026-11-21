@@ -10,23 +10,24 @@ Local config: `wrangler.jsonc`, local Worker name, all-zero local D1 ID, no live
 
 ## Resource inventory
 
-| Resource                         | Name / identifier                                            | Status / purpose                                                                                                             |
-| -------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| Cloudflare account               | b1aa310aa0a1638d72b8b086a21e557c                             | Existing; Workers Standard usage model already configured                                                                    |
-| Zone                             | cheapseggs.com / 3f54cc8fa4f93859b8b38c818ccfd015            | Existing active Free Website zone; existing nameservers retained                                                             |
-| Worker                           | cheapseggs                                                   | Created/deployed and verified, one modular monolith plus static assets                                                       |
-| Custom domains                   | cheapseggs.com; www.cheapseggs.com                           | Active HTTPS custom domains verified; Worker redirects www to apex with 308                                                  |
-| Production D1                    | cheapseggs-production / ef9ff0b0-97d5-428b-81df-cd02fe342bb8 | Created 2026-11-20; only public editorial samples are seeded                                                                 |
-| Local D1                         | cheapseggs-local / all-zero config ID                        | Local emulator only, not a Cloudflare production resource                                                                    |
-| R2                               | None created                                                 | Media remains Workers static assets; future private/premium media bucket deferred by ADR                                     |
-| CFLab site                       | cheapseggs / as_v3ng10kbDYMLWnFWOsf52W                       | Registered in existing analytics service, seven-day raw retention                                                            |
-| Extra Workers/KV/DO/queues/crons | None                                                         | Not needed for safe public release                                                                                           |
-| GitHub production environment    | production, main branch only                                 | Created for release job                                                                                                      |
-| GitHub repository variable       | CLOUDFLARE_DEPLOY_ENABLED=true                               | Explicit new-project release gate; not the gate of another repository                                                        |
-| GitHub secret                    | CLOUDFLARE_API_TOKEN                                         | Configured 2026-11-20; scoped cheapseggs-github-deploy token, expires 2027-11-21 05:59:59 UTC                                |
-| Worker secret                    | SPIN_DIGEST_KEY                                              | Set 2026-11-20 (`wrangler secret put`, 64 hex chars); **required** — spins fail closed with 503 without it; survives deploys |
-| Rate limit bindings              | SPIN_RATE_LIMITER, WHEEL_RATE_LIMITER                        | Declared in both Wrangler configs; Cloudflare-native counters, no extra service or billing                                   |
-| Search Console                   | sc-domain:cheapseggs.com                                     | Verified domain; intended human owner plus existing service account, sitemap submitted (pending processing)                  |
+| Resource                      | Name / identifier                                            | Status / purpose                                                                                                             |
+| ----------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare account            | b1aa310aa0a1638d72b8b086a21e557c                             | Existing; Workers Standard usage model already configured                                                                    |
+| Zone                          | cheapseggs.com / 3f54cc8fa4f93859b8b38c818ccfd015            | Existing active Free Website zone; existing nameservers retained                                                             |
+| Worker                        | cheapseggs                                                   | Created/deployed and verified, one modular monolith plus static assets                                                       |
+| Custom domains                | cheapseggs.com; www.cheapseggs.com                           | Active HTTPS custom domains verified; Worker redirects www to apex with 308                                                  |
+| Production D1                 | cheapseggs-production / ef9ff0b0-97d5-428b-81df-cd02fe342bb8 | Created 2026-11-20; only public editorial samples are seeded                                                                 |
+| Local D1                      | cheapseggs-local / all-zero config ID                        | Local emulator only, not a Cloudflare production resource                                                                    |
+| R2                            | None created                                                 | Media remains Workers static assets; future private/premium media bucket deferred by ADR                                     |
+| CFLab site                    | cheapseggs / as_v3ng10kbDYMLWnFWOsf52W                       | Registered in existing analytics service, seven-day raw retention                                                            |
+| Extra Workers/KV/DO/queues    | None                                                         | No additional service required                                                                                               |
+| Native Worker Cron            | `17 * * * *`                                                 | C1.1 bounded expiry/purge on the existing Worker; no scheduled CI                                                            |
+| GitHub production environment | production, main branch only                                 | Created for release job                                                                                                      |
+| GitHub repository variable    | CLOUDFLARE_DEPLOY_ENABLED=true                               | Explicit new-project release gate; not the gate of another repository                                                        |
+| GitHub secret                 | CLOUDFLARE_API_TOKEN                                         | Configured 2026-11-20; scoped cheapseggs-github-deploy token, expires 2027-11-21 05:59:59 UTC                                |
+| Worker secret                 | SPIN_DIGEST_KEY                                              | Set 2026-11-20 (`wrangler secret put`, 64 hex chars); **required** — spins fail closed with 503 without it; survives deploys |
+| Rate limit bindings           | SPIN_RATE_LIMITER, WHEEL_RATE_LIMITER                        | Declared in both Wrangler configs; Cloudflare-native counters, no extra service or billing                                   |
+| Search Console                | sc-domain:cheapseggs.com                                     | Verified domain; intended human owner plus existing service account, sitemap submitted (pending processing)                  |
 
 Account/zone/database/site IDs are configuration, not secrets. Do not include authentication token values, Google JSON/private key, passwords or browser sessions in this inventory. No R2 bucket is needed to host public social cards. Creating one for an unused binding would add operational surface without a requirement.
 
@@ -118,3 +119,21 @@ Cloudflare's existing Workers Paid plan includes 3,000 account-wide emails/month
 Normal CI adds pinned auth-schema drift and compiled workerd/D1 lifecycle checks. Production applies additive 0003/0004 then releases the exact pushed SHA and smoke-checks the account page/status, unauthenticated refusal, missing adulthood refusal, age-provider closure and existing wheel/security assertions. A separate authorized inbox check may establish provider acceptance; do not equate acceptance with delivered/read mail.
 
 Before any D1 restore: export the current account_deletions ledger outside the restore target, restore into an isolated database, replay deletions against auth_user/users, delete every restored session/challenge, and review before routing traffic. If current deletion state cannot be recovered, remain offline. No restore is performed as part of M3A.
+
+## C1.1 audit production-safe maintenance
+
+The [independent audit](CHEMISTRY_CHECK_SECURITY_AUDIT.md) does not approve private collection. Both
+activation flags and the production envelope key remain absent. Migration 0009 is additive; it enforces
+pending invitation capacity and adds expiry indexes. The existing Worker gains hourly bounded Cron
+maintenance (`17 * * * *`) that requires neither collection flags nor envelope keys. No extra Worker,
+queue, database, KMS, R2, paid plan or scheduled CI is introduced; normal Worker/D1 usage applies.
+Observe scheduled execution after propagation, assign overdue-age/failure monitoring and validate
+capacity before beta. The release smoke now asserts `chemistryPrivate: false` and all 91 private
+route/method combinations return 404/no-store/noindex. `npm run check` also runs the compiled Chemistry
+Worker synthetic test-key drill and actual local D1 adversarial tests.
+
+A restored database must stay isolated until [the quarantine runbook](CHEMISTRY_CHECK_RESTORE.md) is
+complete, including externally attested account-deletion coverage and cooldown continuity (or 30-day
+private closure). Discard all restored Chemistry state and auth sessions/challenges. Neither the
+handoff nor successful key decryption can authorize an unreconciled restore. No production restore is
+part of this release.

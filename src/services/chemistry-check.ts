@@ -38,7 +38,7 @@ import {
   scopeMaterial,
 } from "../domain/chemistry-lifecycle";
 import type { Bindings } from "../server/bindings";
-import { ADULT_POLICY } from "./auth";
+import { ADULT_POLICY, AUTH_IDLE } from "./auth";
 import {
   type ChemistryKeyring,
   envelopeAad,
@@ -61,9 +61,9 @@ export const REPORT_DIMENSIONS: readonly ChemistryDimensionId[] = [
 
 /** Production stays closed unless both the operator flag and the review flag are set. */
 export function chemistryPrivateEnabled(env: Bindings): boolean {
-  if (env.CHEMISTRY_PRIVATE_ENABLED !== "true") return false;
-  if (env.APP_ENV === "production" && env.CHEMISTRY_PRIVATE_REVIEW_APPROVED !== "true")
+  if (!["production", "local"].includes(env.APP_ENV) || env.CHEMISTRY_PRIVATE_ENABLED !== "true")
     return false;
+  if (env.APP_ENV !== "local" && env.CHEMISTRY_PRIVATE_REVIEW_APPROVED !== "true") return false;
   return true;
 }
 
@@ -198,7 +198,7 @@ export interface OwnAssessmentView {
   id: string;
   depth: ChemistryDepth;
   manifestId: string;
-  status: ChemistryStatus;
+  status: ChemistryStatus | "closed";
   createdAt: number;
   acceptedAt: number | null;
   assessmentExpiresAt: number | null;
@@ -208,7 +208,6 @@ export interface OwnAssessmentView {
     submitted: boolean;
     submissionRevision: number | null;
     draftRevision: number;
-    approved: boolean;
   };
   invitation: { expiresAt: number; state: InvitationRow["state"] } | null;
   reportAvailable: boolean;
@@ -314,6 +313,37 @@ export async function assessmentAndParticipant(
   return participant ? { assessment, participant } : null;
 }
 
+/** Independent of cleanup: an expired or terminated assessment is never usable. */
+function writableAssessment(assessment: AssessmentRow, now: number): boolean {
+  return (
+    ["invited", "collecting", "awaiting_release"].includes(assessment.status) &&
+    assessment.terminated_at === null &&
+    (assessment.assessment_expires_at === null || assessment.assessment_expires_at > now)
+  );
+}
+
+// Session id comes only from Better Auth. Check it in the SAME final D1 operation as
+// assessment state, so a second auth await cannot open another revocation window.
+const SESSION_STATE = `(? IS NULL OR EXISTS (SELECT 1 FROM auth_session s JOIN users u ON u.auth_subject = s.userId
+  WHERE s.id = ? AND u.id = ? AND u.deletion_requested_at IS NULL AND s.expiresAt > ? AND s.updatedAt > ?))`;
+function sessionBindings(sessionId: string | undefined, userId: string, now: number) {
+  const checkedAt = Math.max(now * 1000, Date.now());
+  return [
+    sessionId ?? null,
+    sessionId ?? null,
+    userId,
+    new Date(checkedAt).toISOString(),
+    new Date(checkedAt - AUTH_IDLE * 1000).toISOString(),
+  ];
+}
+
+const WRITE_STATE = `EXISTS (SELECT 1 FROM chemistry_assessments a
+  WHERE a.id = chemistry_participants.assessment_id AND a.result_epoch = ?
+    AND a.status IN ('invited','collecting','awaiting_release') AND a.terminated_at IS NULL
+    AND (a.assessment_expires_at IS NULL OR a.assessment_expires_at > ?)
+    AND (a.status <> 'invited' OR EXISTS (SELECT 1 FROM chemistry_invitations i
+      WHERE i.assessment_id = a.id AND i.state = 'pending' AND i.expires_at > ?)))`;
+
 export async function terminateAssessment(
   env: Bindings,
   assessmentId: string,
@@ -344,47 +374,55 @@ export async function terminateAssessment(
   return (results[0]?.meta.changes ?? 0) > 0;
 }
 
-/** Bounded opportunistic cleanup. Production collection stays disabled until scheduled. */
+/** Bounded hourly maintenance, also used opportunistically; no collection/key prerequisite. */
 export async function purgeExpired(env: Bindings, now: number): Promise<void> {
-  try {
-    const expired = await env.DB.prepare(
-      `SELECT id FROM chemistry_assessments
+  const expired = await env.DB.prepare(
+    `SELECT id FROM chemistry_assessments
        WHERE status IN ('collecting','awaiting_release') AND assessment_expires_at IS NOT NULL
          AND assessment_expires_at <= ? LIMIT 20`,
-    )
-      .bind(now)
-      .all<{ id: string }>();
-    for (const row of expired.results) await terminateAssessment(env, row.id, "expired", now);
+  )
+    .bind(now)
+    .all<{ id: string }>();
+  for (const row of expired.results) await terminateAssessment(env, row.id, "expired", now);
 
-    const staleReports = await env.DB.prepare(
-      `SELECT id FROM chemistry_assessments
+  const staleInvites = await env.DB.prepare(
+    `SELECT a.id FROM chemistry_assessments a JOIN chemistry_invitations i ON i.assessment_id = a.id
+       WHERE a.status = 'invited' AND i.expires_at <= ? LIMIT 20`,
+  )
+    .bind(now)
+    .all<{ id: string }>();
+  for (const row of staleInvites.results) await terminateAssessment(env, row.id, "expired", now);
+
+  const staleReports = await env.DB.prepare(
+    `SELECT id FROM chemistry_assessments
        WHERE status = 'released' AND report_expires_at IS NOT NULL AND report_expires_at <= ?
        LIMIT 20`,
-    )
-      .bind(now)
-      .all<{ id: string }>();
-    for (const row of staleReports.results) await terminateAssessment(env, row.id, "expired", now);
+  )
+    .bind(now)
+    .all<{ id: string }>();
+  for (const row of staleReports.results) await terminateAssessment(env, row.id, "expired", now);
 
-    await env.DB.batch([
-      env.DB.prepare(
-        `DELETE FROM chemistry_assessments WHERE id IN (
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM chemistry_pair_releases WHERE pair_key IN
+        (SELECT pair_key FROM chemistry_pair_releases WHERE last_released_at <= ? LIMIT 100)`).bind(
+      now - PAIR_COOLDOWN_SECONDS,
+    ),
+    env.DB.prepare(
+      `DELETE FROM chemistry_assessments WHERE id IN (
            SELECT id FROM chemistry_assessments
            WHERE status IN ('declined','withdrawn','expired','deleted')
              AND purge_after IS NOT NULL AND purge_after <= ? LIMIT 20
          )`,
-      ).bind(now),
-      env.DB.prepare(
-        `UPDATE chemistry_invitations SET state = 'expired'
+    ).bind(now),
+    env.DB.prepare(
+      `UPDATE chemistry_invitations SET state = 'expired'
          WHERE id IN (SELECT id FROM chemistry_invitations
                       WHERE state = 'pending' AND expires_at <= ? LIMIT 20)`,
-      ).bind(now),
-      env.DB.prepare(
-        "DELETE FROM chemistry_budgets WHERE key IN (SELECT key FROM chemistry_budgets WHERE expires_at <= ? LIMIT 100)",
-      ).bind(now),
-    ]);
-  } catch {
-    // Cleanup is best-effort and never changes the response for the current request.
-  }
+    ).bind(now),
+    env.DB.prepare(
+      "DELETE FROM chemistry_budgets WHERE key IN (SELECT key FROM chemistry_budgets WHERE expires_at <= ? LIMIT 100)",
+    ).bind(now),
+  ]);
 }
 
 export async function ownAssessmentView(
@@ -401,11 +439,6 @@ export async function ownAssessmentView(
           .bind(assessment.id)
           .first<{ expires_at: number; state: InvitationRow["state"] }>()
       : null;
-  const approval = await env.DB.prepare(
-    "SELECT scope_digest FROM chemistry_release_approvals WHERE assessment_id = ? AND user_id = ? AND result_epoch = ?",
-  )
-    .bind(assessment.id, participant.user_id, assessment.result_epoch)
-    .first<{ scope_digest: string }>();
   const result = await env.DB.prepare(
     "SELECT result_epoch FROM chemistry_results WHERE assessment_id = ? AND result_epoch = ?",
   )
@@ -415,7 +448,11 @@ export async function ownAssessmentView(
     id: assessment.id,
     depth: assessment.depth as ChemistryDepth,
     manifestId: assessment.manifest_id,
-    status: assessment.status,
+    status: isTerminal(assessment.status)
+      ? "closed"
+      : assessment.status === "awaiting_release"
+        ? "collecting"
+        : assessment.status,
     createdAt: assessment.created_at,
     acceptedAt: assessment.accepted_at,
     assessmentExpiresAt: assessment.assessment_expires_at,
@@ -425,7 +462,6 @@ export async function ownAssessmentView(
       submitted: participant.submission_revision !== null,
       submissionRevision: participant.submission_revision,
       draftRevision: participant.draft_revision,
-      approved: Boolean(approval),
     },
     invitation: invitation ? { expiresAt: invitation.expires_at, state: invitation.state } : null,
     reportAvailable:
@@ -472,6 +508,7 @@ export async function createAssessment(
   depth: ChemistryDepth,
   inviteeLabel: string,
   now: number,
+  sessionId?: string,
 ): Promise<CreatedAssessment | null> {
   const manifest = MANIFESTS[depth];
   if (!manifest) return null;
@@ -498,7 +535,7 @@ export async function createAssessment(
         `INSERT INTO chemistry_assessments
          (id, family, manifest_id, question_bank_version, algorithm_version, depth, status,
           created_by, created_at, invited_at)
-         VALUES (?,?,?,?,?,?, 'invited', ?, ?, ?)`,
+         SELECT ?,?,?,?,?,?, 'invited', ?, ?, ? WHERE ${SESSION_STATE}`,
       ).bind(
         assessmentId,
         CHEMISTRY_FAMILY,
@@ -509,6 +546,7 @@ export async function createAssessment(
         userId,
         now,
         now,
+        ...sessionBindings(sessionId, userId, now),
       ),
       env.DB.prepare(
         "INSERT INTO chemistry_participants(assessment_id,user_id,slot,role,joined_at) VALUES (?,?,1,'creator',?)",
@@ -537,6 +575,7 @@ export async function acceptInvitation(
   confirmLabel: string,
   userId: string,
   now: number,
+  sessionId?: string,
 ): Promise<{ assessmentId: string } | null> {
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) return null;
   const digest = await sha256Hex(`chemistry-invite-v1|${token}`);
@@ -571,8 +610,20 @@ export async function acceptInvitation(
       env.DB.prepare(
         `UPDATE chemistry_invitations
          SET state = 'consumed', consumed_at = ?, consumed_by = ?
-         WHERE id = ? AND state = 'pending' AND expires_at > ? AND created_by <> ?`,
-      ).bind(now, userId, invitation.id, now, userId),
+         WHERE id = ? AND state = 'pending' AND expires_at > ? AND created_by <> ?
+           AND EXISTS (SELECT 1 FROM chemistry_assessments a WHERE a.id = assessment_id AND a.status = 'invited')
+           AND NOT EXISTS (SELECT 1 FROM chemistry_pair_releases WHERE pair_key = ? AND last_released_at > ?)
+           AND ${SESSION_STATE}`,
+      ).bind(
+        now,
+        userId,
+        invitation.id,
+        now,
+        userId,
+        pair,
+        now - PAIR_COOLDOWN_SECONDS,
+        ...sessionBindings(sessionId, userId, now),
+      ),
       env.DB.prepare(
         `INSERT INTO chemistry_participants(assessment_id,user_id,slot,role,joined_at)
          SELECT ?, ?, 2, 'invitee', ?
@@ -601,7 +652,6 @@ export async function acceptInvitation(
     ]);
     const changes = results.map((result) => result.meta.changes ?? 0);
     if (changes[0] !== 1 || changes[1] !== 1 || changes[2] !== 1) {
-      await terminateAssessment(env, assessment.id, "withdrawn", now);
       return null;
     }
   } catch {
@@ -648,11 +698,12 @@ export async function saveDraft(
   userId: string,
   submission: AssessmentSubmission,
   now: number,
+  sessionId?: string,
 ): Promise<number | null> {
   const found = await assessmentAndParticipant(env, assessmentId, userId);
   if (!found) return null;
   const { assessment, participant } = found;
-  if (!["invited", "collecting", "awaiting_release"].includes(assessment.status)) return null;
+  if (!writableAssessment(assessment, now)) return null;
   if (participant.role === "invitee" && assessment.status === "invited") return null;
   if (submission.depth !== assessment.depth || submission.manifestId !== assessment.manifest_id)
     return null;
@@ -672,12 +723,12 @@ export async function saveDraft(
   }
   const invalidates = participant.submission_revision !== null;
   const guard =
-    "EXISTS (SELECT 1 FROM chemistry_participants WHERE assessment_id = ? AND user_id = ? AND draft_revision = ?)";
+    "EXISTS (SELECT 1 FROM chemistry_participants WHERE assessment_id = ? AND user_id = ? AND draft_revision = ? AND draft_envelope = ?)";
   const statements = [
     env.DB.prepare(
       `UPDATE chemistry_participants
        SET draft_revision = ?, draft_envelope = ?, draft_key_version = ?, draft_updated_at = ?
-       WHERE assessment_id = ? AND user_id = ? AND draft_revision = ?`,
+       WHERE assessment_id = ? AND user_id = ? AND draft_revision = ? AND submission_revision IS ? AND withdrawn_at IS NULL AND ${WRITE_STATE} AND ${SESSION_STATE}`,
     ).bind(
       revision,
       sealed.envelope,
@@ -686,6 +737,11 @@ export async function saveDraft(
       assessmentId,
       userId,
       participant.draft_revision,
+      participant.submission_revision,
+      assessment.result_epoch,
+      Math.floor(Date.now() / 1000),
+      Math.floor(Date.now() / 1000),
+      ...sessionBindings(sessionId, userId, now),
     ),
   ];
   if (invalidates) {
@@ -697,15 +753,16 @@ export async function saveDraft(
                WHEN (SELECT count(*) FROM chemistry_participants WHERE assessment_id = ? AND submission_revision IS NOT NULL) = 2
                THEN 'awaiting_release' ELSE 'collecting' END
          WHERE id = ? AND status IN ('collecting','awaiting_release') AND ${guard}`,
-      ).bind(assessmentId, assessmentId, assessmentId, userId, revision),
+      ).bind(assessmentId, assessmentId, assessmentId, userId, revision, sealed.envelope),
       env.DB.prepare(
         `DELETE FROM chemistry_release_approvals WHERE assessment_id = ? AND ${guard}`,
-      ).bind(assessmentId, assessmentId, userId, revision),
+      ).bind(assessmentId, assessmentId, userId, revision, sealed.envelope),
       env.DB.prepare(`DELETE FROM chemistry_results WHERE assessment_id = ? AND ${guard}`).bind(
         assessmentId,
         assessmentId,
         userId,
         revision,
+        sealed.envelope,
       ),
     );
   }
@@ -723,11 +780,13 @@ export async function readDraft(
   keyring: ChemistryKeyring,
   assessmentId: string,
   userId: string,
+  sessionId?: string,
 ): Promise<AssessmentSubmission | null> {
   const found = await assessmentAndParticipant(env, assessmentId, userId);
   if (!found) return null;
   const { assessment, participant } = found;
-  if (!participant.draft_envelope) return null;
+  if (!participant.draft_envelope || !writableAssessment(assessment, Math.floor(Date.now() / 1000)))
+    return null;
   try {
     const plaintext = await openEnvelope(
       participant.draft_envelope,
@@ -738,7 +797,32 @@ export async function readDraft(
         manifestId: assessment.manifest_id,
       }),
       keyring,
+      participant.draft_key_version,
     );
+    const current = await env.DB.prepare(`SELECT p.user_id FROM chemistry_participants p
+      JOIN chemistry_assessments a ON a.id = p.assessment_id
+      WHERE a.id = ? AND p.user_id = ? AND p.draft_revision = ? AND p.draft_envelope = ?
+        AND a.result_epoch = ? AND a.status IN ('invited','collecting','awaiting_release')
+        AND a.terminated_at IS NULL AND p.withdrawn_at IS NULL
+        AND (a.assessment_expires_at IS NULL OR a.assessment_expires_at > ?)
+        AND (a.status <> 'invited' OR EXISTS (SELECT 1 FROM chemistry_invitations i
+          WHERE i.assessment_id = a.id AND i.state = 'pending' AND i.expires_at > ?))
+        AND EXISTS (SELECT 1 FROM account_declarations d WHERE d.user_id = p.user_id AND d.policy_version = ? AND d.expires_at > ?)
+        AND ${SESSION_STATE}`)
+      .bind(
+        assessmentId,
+        userId,
+        participant.draft_revision,
+        participant.draft_envelope,
+        assessment.result_epoch,
+        Math.floor(Date.now() / 1000),
+        Math.floor(Date.now() / 1000),
+        ADULT_POLICY,
+        Math.floor(Date.now() / 1000),
+        ...sessionBindings(sessionId, userId, Math.floor(Date.now() / 1000)),
+      )
+      .first();
+    if (!current) return null;
     const payload: unknown = JSON.parse(plaintext);
     return parseSubmissionPayload(payload);
   } catch {
@@ -753,11 +837,12 @@ export async function submitAssessment(
   userId: string,
   submission: AssessmentSubmission,
   now: number,
+  sessionId?: string,
 ): Promise<number | null> {
   const found = await assessmentAndParticipant(env, assessmentId, userId);
   if (!found) return null;
   const { assessment, participant } = found;
-  if (!["invited", "collecting", "awaiting_release"].includes(assessment.status)) return null;
+  if (!writableAssessment(assessment, now)) return null;
   if (participant.role === "invitee" && assessment.status === "invited") return null;
   if (submission.depth !== assessment.depth || submission.manifestId !== assessment.manifest_id)
     return null;
@@ -766,10 +851,16 @@ export async function submitAssessment(
   const revision = Math.max(participant.draft_revision, participant.submission_revision ?? 0) + 1;
   if (revision > 1000) return null;
   let sealed: { envelope: string; keyVersion: number };
+  let sealedDraft: { envelope: string; keyVersion: number };
   try {
     sealed = await sealEnvelope(
       JSON.stringify(submission),
       submissionAad({ assessmentId, userId, revision, manifestId: assessment.manifest_id }),
+      keyring,
+    );
+    sealedDraft = await sealEnvelope(
+      JSON.stringify(submission),
+      draftAad({ assessmentId, userId, revision, manifestId: assessment.manifest_id }),
       keyring,
     );
   } catch {
@@ -777,15 +868,16 @@ export async function submitAssessment(
   }
   const digest = await sha256Hex(sealed.envelope);
   const guard =
-    "EXISTS (SELECT 1 FROM chemistry_participants WHERE assessment_id = ? AND user_id = ? AND submission_revision = ?)";
+    "EXISTS (SELECT 1 FROM chemistry_participants WHERE assessment_id = ? AND user_id = ? AND submission_revision = ? AND submission_digest = ?)";
   try {
     const results = await env.DB.batch([
       env.DB.prepare(
         `UPDATE chemistry_participants
          SET submission_revision = ?, submitted_at = ?, submission_envelope = ?,
-             submission_key_version = ?, submission_digest = ?, draft_revision = ?
+             submission_key_version = ?, submission_digest = ?, draft_revision = ?,
+             draft_envelope = ?, draft_key_version = ?, draft_updated_at = ?
          WHERE assessment_id = ? AND user_id = ?
-           AND (submission_revision IS NULL OR submission_revision = ?)`,
+           AND submission_revision IS ? AND draft_revision = ? AND withdrawn_at IS NULL AND ${WRITE_STATE} AND ${SESSION_STATE}`,
       ).bind(
         revision,
         now,
@@ -793,9 +885,17 @@ export async function submitAssessment(
         sealed.keyVersion,
         digest,
         revision,
+        sealedDraft.envelope,
+        sealedDraft.keyVersion,
+        now,
         assessmentId,
         userId,
         participant.submission_revision,
+        participant.draft_revision,
+        assessment.result_epoch,
+        Math.floor(Date.now() / 1000),
+        Math.floor(Date.now() / 1000),
+        ...sessionBindings(sessionId, userId, now),
       ),
       env.DB.prepare(
         `UPDATE chemistry_assessments
@@ -804,15 +904,16 @@ export async function submitAssessment(
                WHEN (SELECT count(*) FROM chemistry_participants WHERE assessment_id = ? AND submission_revision IS NOT NULL) = 2
                THEN 'awaiting_release' ELSE 'collecting' END
          WHERE id = ? AND status IN ('invited','collecting','awaiting_release') AND ${guard}`,
-      ).bind(assessmentId, assessmentId, assessmentId, userId, revision),
+      ).bind(assessmentId, assessmentId, assessmentId, userId, revision, digest),
       env.DB.prepare(
         `DELETE FROM chemistry_release_approvals WHERE assessment_id = ? AND ${guard}`,
-      ).bind(assessmentId, assessmentId, userId, revision),
+      ).bind(assessmentId, assessmentId, userId, revision, digest),
       env.DB.prepare(`DELETE FROM chemistry_results WHERE assessment_id = ? AND ${guard}`).bind(
         assessmentId,
         assessmentId,
         userId,
         revision,
+        digest,
       ),
     ]);
     if ((results[0]?.meta.changes ?? 0) !== 1 || (results[1]?.meta.changes ?? 0) !== 1) return null;
@@ -834,20 +935,24 @@ export async function approveRelease(
   userId: string,
   input: ApprovalInput,
   now: number,
+  sessionId?: string,
 ): Promise<OwnAssessmentView | null> {
   const found = await assessmentAndParticipant(env, assessmentId, userId);
   if (!found) return null;
   const { assessment, participant } = found;
-  if (assessment.status !== "awaiting_release" || assessment.accepted_at === null) return null;
+  if (
+    !["collecting", "awaiting_release"].includes(assessment.status) ||
+    assessment.accepted_at === null
+  )
+    return null;
+  if (
+    assessment.algorithm_version !== CHEMISTRY_ALGORITHM_VERSION ||
+    assessment.question_bank_version !== CHEMISTRY_BANK_VERSION
+  )
+    return null;
   if (assessment.assessment_expires_at !== null && assessment.assessment_expires_at <= now)
     return null;
   if (participant.submission_revision === null) return null;
-  const both = await env.DB.prepare(
-    "SELECT count(*) AS total FROM chemistry_participants WHERE assessment_id = ? AND submission_revision IS NOT NULL",
-  )
-    .bind(assessmentId)
-    .first<{ total: number }>();
-  if (!both || both.total !== 2) return null;
   const scope = normalizeScope({
     dimensions: input.dimensions,
     intimacyShared: input.intimacyShared,
@@ -874,7 +979,12 @@ export async function approveRelease(
     const result = await env.DB.prepare(
       `INSERT INTO chemistry_release_approvals
        (assessment_id,user_id,result_epoch,submission_revision,manifest_id,scope_digest,scope_json,approved_at,expires_at)
-       VALUES (?,?,?,?,?,?,?,?,?)
+       SELECT ?,?,?,?,?,?,?,?,?
+       WHERE EXISTS (SELECT 1 FROM chemistry_assessments a JOIN chemistry_participants p ON p.assessment_id = a.id
+         WHERE a.id = ? AND p.user_id = ? AND a.result_epoch = ? AND a.status IN ('collecting','awaiting_release')
+           AND a.terminated_at IS NULL AND a.assessment_expires_at > ? AND p.withdrawn_at IS NULL
+           AND p.submission_revision = ? AND p.draft_revision = p.submission_revision)
+       AND ${SESSION_STATE}
        ON CONFLICT(assessment_id,user_id,result_epoch) DO UPDATE SET
          submission_revision=excluded.submission_revision,
          manifest_id=excluded.manifest_id,
@@ -893,6 +1003,12 @@ export async function approveRelease(
         scopeJson,
         now,
         scope.expiresAt,
+        assessmentId,
+        userId,
+        assessment.result_epoch,
+        Math.floor(Date.now() / 1000),
+        participant.submission_revision,
+        ...sessionBindings(sessionId, userId, now),
       )
       .run();
     if ((result.meta.changes ?? 0) !== 1) return null;
@@ -935,6 +1051,7 @@ async function decryptedSubmission(
         manifestId: assessment.manifest_id,
       }),
       keyring,
+      participant.submission_key_version,
     );
     const payload: unknown = JSON.parse(plaintext);
     const submission = parseSubmissionPayload(payload);
@@ -958,11 +1075,17 @@ export async function releaseAssessment(
   assessmentId: string,
   userId: string,
   now: number,
+  sessionId?: string,
 ): Promise<ReleasedReport | null> {
   const found = await assessmentAndParticipant(env, assessmentId, userId);
   if (!found) return null;
   const { assessment } = found;
   if (assessment.status !== "awaiting_release" || assessment.accepted_at === null) return null;
+  if (
+    assessment.algorithm_version !== CHEMISTRY_ALGORITHM_VERSION ||
+    assessment.question_bank_version !== CHEMISTRY_BANK_VERSION
+  )
+    return null;
   if (assessment.assessment_expires_at !== null && assessment.assessment_expires_at <= now)
     return null;
 
@@ -1040,7 +1163,15 @@ export async function releaseAssessment(
   const evaluation = evaluateCompatibility(firstSubmission, secondSubmission, {
     dimensions: shared.dimensions,
   });
-  const report = buildSharedReport(evaluation);
+  const builtReport = buildSharedReport(evaluation);
+  const report: SharedReport = {
+    ...builtReport,
+    dimensions: builtReport.dimensions.map((dimension) =>
+      dimension.band === null && builtReport.available
+        ? { ...dimension, detail: "not_enough_shared_answers" }
+        : dimension,
+    ),
+  };
 
   const sharedDigest = await sha256Hex(
     JSON.stringify({
@@ -1076,7 +1207,21 @@ export async function releaseAssessment(
         `INSERT INTO chemistry_results
          (assessment_id,result_epoch,report_envelope,envelope_key_version,scope_digest,created_at,expires_at)
          SELECT ?,?,?,?,?,?,?
-         WHERE NOT EXISTS (SELECT 1 FROM chemistry_results WHERE assessment_id = ?)`,
+         WHERE NOT EXISTS (SELECT 1 FROM chemistry_results WHERE assessment_id = ?)
+           AND EXISTS (SELECT 1 FROM chemistry_assessments a WHERE a.id = ?
+             AND a.status = 'awaiting_release' AND a.result_epoch = ? AND a.terminated_at IS NULL
+             AND a.assessment_expires_at > ? AND a.manifest_id = ? AND a.algorithm_version = ?)
+           AND (SELECT count(*) FROM chemistry_participants p JOIN chemistry_release_approvals r
+             ON r.assessment_id = p.assessment_id AND r.user_id = p.user_id
+             JOIN users u ON u.id = p.user_id JOIN account_declarations d ON d.user_id = p.user_id
+             WHERE p.assessment_id = ? AND p.withdrawn_at IS NULL AND u.deletion_requested_at IS NULL
+               AND d.policy_version = ? AND d.expires_at > ?
+               AND p.draft_revision = p.submission_revision
+               AND r.result_epoch = ? AND r.submission_revision = p.submission_revision
+               AND r.manifest_id = ? AND r.expires_at = ?
+               AND ((p.user_id = ? AND p.submission_digest = ? AND r.scope_digest = ?)
+                 OR (p.user_id = ? AND p.submission_digest = ? AND r.scope_digest = ?))) = 2
+           AND ${SESSION_STATE}`,
       ).bind(
         assessmentId,
         assessment.result_epoch,
@@ -1086,6 +1231,24 @@ export async function releaseAssessment(
         now,
         shared.expiresAt,
         assessmentId,
+        assessmentId,
+        assessment.result_epoch,
+        Math.floor(Date.now() / 1000),
+        assessment.manifest_id,
+        CHEMISTRY_ALGORITHM_VERSION,
+        assessmentId,
+        ADULT_POLICY,
+        now,
+        assessment.result_epoch,
+        assessment.manifest_id,
+        deadline,
+        firstParticipant.user_id,
+        firstParticipant.submission_digest,
+        approvalByUser.get(firstParticipant.user_id)?.scope_digest ?? "",
+        secondParticipant.user_id,
+        secondParticipant.submission_digest,
+        approvalByUser.get(secondParticipant.user_id)?.scope_digest ?? "",
+        ...sessionBindings(sessionId, userId, now),
       ),
       env.DB.prepare(
         `UPDATE chemistry_assessments
@@ -1108,18 +1271,19 @@ export async function releaseAssessment(
       ).bind(now, assessmentId, now),
     ]);
     if ((results[0]?.meta.changes ?? 0) !== 1 || (results[1]?.meta.changes ?? 0) !== 1) {
-      await env.DB.prepare(
-        "DELETE FROM chemistry_results WHERE assessment_id = ? AND result_epoch = ?",
-      )
-        .bind(assessmentId, assessment.result_epoch)
-        .run()
-        .catch(() => undefined);
       return null;
     }
   } catch {
     return null;
   }
-  return { report, expiresAt: shared.expiresAt };
+  return readReleasedReport(
+    env,
+    keyring,
+    assessmentId,
+    userId,
+    Math.floor(Date.now() / 1000),
+    sessionId,
+  );
 }
 
 export async function readReleasedReport(
@@ -1128,6 +1292,7 @@ export async function readReleasedReport(
   assessmentId: string,
   userId: string,
   now: number,
+  sessionId?: string,
 ): Promise<ReleasedReport | null> {
   const found = await assessmentAndParticipant(env, assessmentId, userId);
   if (!found) return null;
@@ -1144,12 +1309,13 @@ export async function readReleasedReport(
     .first<{ total: number }>();
   if (!participants || participants.total !== 2) return null;
   const result = await env.DB.prepare(
-    "SELECT result_epoch, report_envelope, scope_digest, expires_at FROM chemistry_results WHERE assessment_id = ?",
+    "SELECT result_epoch, report_envelope, envelope_key_version, scope_digest, expires_at FROM chemistry_results WHERE assessment_id = ?",
   )
     .bind(assessmentId)
     .first<{
       result_epoch: number;
       report_envelope: string;
+      envelope_key_version: number;
       scope_digest: string;
       expires_at: number;
     }>();
@@ -1164,9 +1330,39 @@ export async function readReleasedReport(
         sharedDigest: result.scope_digest,
       }),
       keyring,
+      result.envelope_key_version,
     );
     const report = JSON.parse(plaintext) as SharedReport;
     if (report.version !== 1 || report.manifestId !== assessment.manifest_id) return null;
+    // Linearization point after crypto: revocations completed during decryption win.
+    const current = await env.DB.prepare(`SELECT a.id FROM chemistry_assessments a
+      JOIN chemistry_results r ON r.assessment_id = a.id AND r.result_epoch = a.result_epoch
+      WHERE a.id = ? AND a.status = 'released' AND a.terminated_at IS NULL AND a.result_epoch = ?
+        AND a.report_expires_at > ? AND r.expires_at > ? AND r.report_envelope = ?
+        AND a.algorithm_version = ? AND a.question_bank_version = ?
+        AND EXISTS (SELECT 1 FROM chemistry_participants WHERE assessment_id = a.id AND user_id = ? AND withdrawn_at IS NULL)
+        AND (SELECT count(*) FROM chemistry_participants p
+          JOIN users u ON u.id = p.user_id JOIN account_declarations d ON d.user_id = p.user_id
+          JOIN chemistry_release_approvals g ON g.assessment_id = p.assessment_id AND g.user_id = p.user_id
+          WHERE p.assessment_id = a.id AND p.withdrawn_at IS NULL AND u.deletion_requested_at IS NULL
+            AND d.policy_version = ? AND d.expires_at > ? AND g.result_epoch = a.result_epoch
+            AND g.submission_revision = p.submission_revision AND g.manifest_id = a.manifest_id
+            AND g.expires_at = r.expires_at) = 2 AND ${SESSION_STATE}`)
+      .bind(
+        assessmentId,
+        assessment.result_epoch,
+        Math.floor(Date.now() / 1000),
+        Math.floor(Date.now() / 1000),
+        result.report_envelope,
+        CHEMISTRY_ALGORITHM_VERSION,
+        CHEMISTRY_BANK_VERSION,
+        userId,
+        ADULT_POLICY,
+        Math.floor(Date.now() / 1000),
+        ...sessionBindings(sessionId, userId, Math.floor(Date.now() / 1000)),
+      )
+      .first();
+    if (!current) return null;
     return { report, expiresAt: result.expires_at };
   } catch {
     return null;

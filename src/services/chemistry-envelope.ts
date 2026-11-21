@@ -160,6 +160,7 @@ export async function openEnvelope(
   envelope: string,
   aad: string,
   keyring: ChemistryKeyring,
+  expectedKeyVersion?: number | null,
 ): Promise<string> {
   if (envelope.length === 0 || envelope.length > MAX_ENVELOPE_CHARS)
     throw new Error("envelope_invalid");
@@ -177,11 +178,20 @@ export async function openEnvelope(
   const version = typeof record.kv === "number" ? record.kv : null;
   if (version === null || !Number.isSafeInteger(version) || version < 1)
     throw new Error("envelope_invalid");
+  if (expectedKeyVersion !== undefined && expectedKeyVersion !== version)
+    throw new Error("envelope_invalid");
   const key = keyring.keys.get(version);
   if (!key) throw new Error("envelope_key_unavailable");
   const iv = typeof record.iv === "string" ? decodeBase64Url(record.iv) : null;
   const ciphertext = typeof record.ct === "string" ? decodeBase64Url(record.ct) : null;
-  if (!iv || iv.byteLength !== IV_BYTES || !ciphertext || ciphertext.byteLength < TAG_BITS / 8)
+  if (
+    !iv ||
+    iv.byteLength !== IV_BYTES ||
+    !ciphertext ||
+    ciphertext.byteLength < PAD_BUCKET + TAG_BITS / 8 ||
+    (ciphertext.byteLength - TAG_BITS / 8) % PAD_BUCKET !== 0 ||
+    ciphertext.byteLength > MAX_PLAINTEXT_BYTES + PAD_BUCKET + TAG_BITS / 8
+  )
     throw new Error("envelope_invalid");
   let plaintext: ArrayBuffer;
   try {
@@ -194,7 +204,8 @@ export async function openEnvelope(
     throw new Error("envelope_rejected");
   }
   const trimmed = unpadded(new Uint8Array(plaintext));
-  if (!trimmed) throw new Error("envelope_invalid");
+  if (!trimmed || trimmed.byteLength === 0 || trimmed.byteLength > MAX_PLAINTEXT_BYTES)
+    throw new Error("envelope_invalid");
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(trimmed);
   } catch {

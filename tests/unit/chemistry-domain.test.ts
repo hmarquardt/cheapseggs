@@ -577,3 +577,28 @@ describe("demonstration pairing", () => {
     expect(sample(100).dimensions.length).toBe(8);
   });
 });
+
+describe("C1.1 disclosure scope", () => {
+  it("excluded dimensions and unapproved intimacy cannot affect the hard signal", () => {
+    const manifest = MANIFESTS[100];
+    const base = manifest.questions.map((q) =>
+      response(q, [firstId(q)], "any", { disclosure: "summary" }),
+    );
+    const a = submission(100, base, { hardSignal: true });
+    const b = submission(100, base, { hardSignal: true });
+    const scope = { dimensions: ["goals", "lifestyle", "communication"] as const };
+    const before = buildSharedReport(evaluateCompatibility(a, b, scope));
+    for (const dimension of ["values", "intimacy"] as const) {
+      const changed = submission(
+        100,
+        base.map((r) =>
+          manifest.questions.find((q) => q.id === r.questionId)?.dimension === dimension
+            ? { ...r, dealbreaker: true, accept: [] }
+            : r,
+        ),
+        { hardSignal: true },
+      );
+      expect(buildSharedReport(evaluateCompatibility(changed, b, scope))).toEqual(before);
+    }
+  });
+});

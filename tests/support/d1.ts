@@ -122,3 +122,10 @@ export function seedCount(raw: DatabaseSync, table: string): number {
 }
 
 export const TEST_ENV = { DB: undefined as unknown as D1Database, APP_ENV: "local" };
+
+/** Test-only reopening of a captured SQLite snapshot, preserving restored grants. */
+export function openTestSnapshot(path: string): TestDatabase {
+  const raw = new DatabaseSync(path);
+  raw.exec("PRAGMA foreign_keys = ON");
+  return { db: new TestD1(raw) as unknown as D1Database, raw };
+}

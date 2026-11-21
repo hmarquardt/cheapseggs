@@ -30,6 +30,11 @@ export function RealAssessments(): JSX.Element | null {
 
   useEffect(() => {
     let cancelled = false;
+    const token = new URLSearchParams(location.hash.slice(1)).get("invite");
+    if (token) {
+      setInviteToken(token);
+      history.replaceState(null, "", location.pathname + location.search);
+    }
     void (async () => {
       try {
         await realApi<{ available: boolean }>("/status");
@@ -39,8 +44,6 @@ export function RealAssessments(): JSX.Element | null {
         if (!cancelled) setAvailable(false);
         return;
       }
-      const token = new URLSearchParams(location.hash.slice(1)).get("invite");
-      if (token && !cancelled) setInviteToken(token);
       const response = await fetch("/api/account", {
         credentials: "same-origin",
         cache: "no-store",
@@ -104,7 +107,7 @@ export function RealAssessments(): JSX.Element | null {
 
   const withdraw = (id: string, method: "POST" | "DELETE") =>
     act(async () => {
-      await realApi(`/assessments/${id}/withdraw`, { method });
+      await realApi(`/assessments/${id}${method === "DELETE" ? "" : "/withdraw"}`, { method });
       setView(null);
       setReport(null);
       await refreshList();
@@ -256,8 +259,9 @@ export function RealAssessments(): JSX.Element | null {
           Create invitation
         </button>
         <p class="chemistry-note">
-          The label is not sent automatically and is not an account lookup. It only confirms the
-          right person accepts the link.
+          The label is not sent automatically and is not an account lookup. Anyone who knows the
+          link and label can accept. Confirm who joined through a trusted channel before submitting.
+          The label does not verify identity.
         </p>
       </div>
 

@@ -1,5 +1,7 @@
 # Security, abuse and compliance review
 
+C1.1: [independent Chemistry Check audit](CHEMISTRY_CHECK_SECURITY_AUDIT.md) records confirmed private-enabled defects, corrections and the recommendation **not to approve private beta** pending operational gates. Production collection remains disabled.
+
 M3B follow-up: [independent security and integration review](M3B_SECURITY_REVIEW.md) records verified findings, corrections, validation and residual limits.
 
 ## M3A status (supersedes historical disabled-identity statements above)

@@ -122,6 +122,7 @@ export function scopeMaterial(input: {
     resultEpoch: input.resultEpoch,
     submissionRevision: input.submissionRevision,
     manifestId: input.manifestId,
+    algorithmVersion: CHEMISTRY_ALGORITHM_VERSION,
     dimensions: [...input.scope.dimensions].sort(),
     intimacyShared: input.scope.intimacyShared,
     hardSignal: input.scope.hardSignal,

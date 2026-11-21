@@ -57,6 +57,17 @@ const approvalSchema = z
   .strict();
 
 const NOT_FOUND = { error: "not_found" } as const;
+function revocationRequest(request: Request): boolean {
+  const path = new URL(request.url).pathname;
+  return (
+    (request.method === "POST" &&
+      /^\/api\/v1\/chemistry-check\/assessments\/[0-9a-f-]{36}\/(withdraw|decline|invitation\/revoke)$/.test(
+        path,
+      )) ||
+    (request.method === "DELETE" &&
+      /^\/api\/v1\/chemistry-check\/assessments\/[0-9a-f-]{36}$/.test(path))
+  );
+}
 
 /** All private routes fail closed and indistinguishably when the gate or key is absent. */
 chemistryRoutes.use("/chemistry-check/*", async (c, next) => {
@@ -75,12 +86,14 @@ chemistryRoutes.use("/chemistry-check/*", async (c, next) => {
   }
   const address = c.env.APP_ENV === "production" ? c.req.header("cf-connecting-ip") : "local";
   if (!address) return c.json({ error: "unavailable" }, 503);
-  if (!(await takeChemistryBudget(c.env, "request", address, 240, 900))) {
+  if (
+    !revocationRequest(c.req.raw) &&
+    !(await takeChemistryBudget(c.env, "request", address, 240, 900))
+  ) {
     c.header("retry-after", "900");
     return c.json({ error: "rate_limited" }, 429);
   }
   c.set("chemistryKeyring", keyring);
-  await purgeExpired(c.env, Math.floor(Date.now() / 1000));
   await next();
 });
 chemistryRoutes.use("/chemistry-check/*", async (c, next) => {
@@ -91,15 +104,22 @@ chemistryRoutes.use("/chemistry-check/*", async (c, next) => {
 });
 
 type Actor =
-  | { userId: string }
-  | { error: "sign_in_required" | "adult_declaration_required"; status: 401 | 403 };
+  | { userId: string; sessionId: string }
+  | {
+      error: "sign_in_required" | "adult_declaration_required" | "rate_limited";
+      status: 401 | 403 | 429;
+    };
 
 async function actor(request: Request, env: Bindings, now: number): Promise<Actor> {
   const account = await currentAccount(env, request);
   if (!account) return { error: "sign_in_required", status: 401 };
+  if (revocationRequest(request)) return { userId: account.ownerId, sessionId: account.session.id };
   if (!(await adultDeclared(env, account.ownerId, now)))
     return { error: "adult_declaration_required", status: 403 };
-  return { userId: account.ownerId };
+  if (!(await takeChemistryBudget(env, "account-request", account.ownerId, 240, 900)))
+    return { error: "rate_limited", status: 429 };
+  await purgeExpired(env, now).catch(() => undefined);
+  return { userId: account.ownerId, sessionId: account.session.id };
 }
 
 async function body<T>(
@@ -131,6 +151,7 @@ chemistryRoutes.post("/chemistry-check/assessments", async (c) => {
     parsed.depth as ChemistryDepth,
     parsed.inviteeLabel,
     now,
+    who.sessionId,
   );
   if (!created) return c.json({ error: "not_available" }, 409);
   return c.json(
@@ -174,6 +195,7 @@ chemistryRoutes.get("/chemistry-check/assessments/:id/draft", async (c) => {
     c.get("chemistryKeyring"),
     c.req.param("id"),
     who.userId,
+    who.sessionId,
   );
   if (!submission) return c.json(NOT_FOUND, 404);
   return c.json({ submission });
@@ -194,6 +216,7 @@ chemistryRoutes.put("/chemistry-check/assessments/:id/draft", async (c) => {
     who.userId,
     submission,
     now,
+    who.sessionId,
   );
   if (revision === null) return c.json(NOT_FOUND, 404);
   return c.json({ revision });
@@ -214,6 +237,7 @@ chemistryRoutes.post("/chemistry-check/assessments/:id/submission", async (c) =>
     who.userId,
     submission,
     now,
+    who.sessionId,
   );
   if (revision === null) return c.json(NOT_FOUND, 404);
   return c.json({ revision });
@@ -225,7 +249,14 @@ chemistryRoutes.post("/chemistry-check/assessments/:id/approval", async (c) => {
   if ("error" in who) return c.json({ error: who.error }, who.status);
   const parsed = await body(c.req.raw, approvalSchema);
   if (!parsed) return c.json({ error: "invalid_request" }, 400);
-  const view = await approveRelease(c.env, c.req.param("id"), who.userId, parsed, now);
+  const view = await approveRelease(
+    c.env,
+    c.req.param("id"),
+    who.userId,
+    parsed,
+    now,
+    who.sessionId,
+  );
   if (!view) return c.json({ error: "not_ready" }, 409);
   return c.json({ assessment: view });
 });
@@ -244,6 +275,7 @@ chemistryRoutes.post("/chemistry-check/assessments/:id/release", async (c) => {
     c.req.param("id"),
     who.userId,
     now,
+    who.sessionId,
   );
   if (!released) return c.json({ error: "not_ready" }, 409);
   return c.json(released);
@@ -259,6 +291,7 @@ chemistryRoutes.get("/chemistry-check/assessments/:id/report", async (c) => {
     c.req.param("id"),
     who.userId,
     now,
+    who.sessionId,
   );
   if (!released) return c.json(NOT_FOUND, 404);
   return c.json(released);
@@ -294,6 +327,7 @@ chemistryRoutes.post("/chemistry-check/invitations/accept", async (c) => {
     parsed.confirmLabel,
     who.userId,
     now,
+    who.sessionId,
   );
   if (!accepted) return c.json(NOT_FOUND, 404);
   return c.json({ assessmentId: accepted.assessmentId });

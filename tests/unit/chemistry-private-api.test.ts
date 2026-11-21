@@ -1,9 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { backup } from "node:sqlite";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { restoreQuarantineSql } from "../../scripts/restore-quarantine";
 import { type ChemistryDepth, DIMENSIONS, MANIFESTS } from "../../src/content/chemistry/questions";
 import type { AssessmentSubmission } from "../../src/domain/chemistry";
 import { app } from "../../src/server";
 import type { Bindings } from "../../src/server/bindings";
-import { createTestDatabase, type TestDatabase } from "../support/d1";
+import { createTestDatabase, openTestSnapshot, type TestDatabase } from "../support/d1";
 
 const ORIGIN = "http://127.0.0.1:8787";
 let database: TestDatabase;
@@ -112,7 +117,10 @@ beforeEach(() => {
   counter = 0;
   env = chemistryEnv();
 });
-afterEach(() => database.raw.close());
+afterEach(() => {
+  vi.restoreAllMocks();
+  database.raw.close();
+});
 
 async function createPair(depth: ChemistryDepth = 25) {
   const first = await login();
@@ -596,8 +604,8 @@ describe("release scope and invalidation", () => {
     expect(payload.report.hardConflict).toBeNull();
     const byId = new Map(payload.report.dimensions.map((entry) => [entry.dimension, entry]));
     expect(byId.get("goals")?.band).not.toBeNull();
-    expect(byId.get("humor")?.detail).toBe("outside_approved_scope");
-    expect(byId.get("intimacy")?.detail).toBe("outside_approved_scope");
+    expect(byId.get("humor")?.detail).toBe("not_enough_shared_answers");
+    expect(byId.get("intimacy")?.detail).toBe("not_enough_shared_answers");
   });
 
   it("invalidates both approvals when one participant edits their submission", async () => {
@@ -800,8 +808,13 @@ describe("expiration, cooldown and abuse limits", () => {
     });
     expect(view.status).toBe(200);
     expect(((await view.json()) as { assessment: { status: string } }).assessment.status).toBe(
-      "expired",
+      "closed",
     );
+    expect(
+      database.raw
+        .prepare("SELECT status FROM chemistry_assessments WHERE id = ?")
+        .get(pair.assessmentId),
+    ).toEqual({ status: "expired" });
     expect(
       database.raw
         .prepare(
@@ -1032,5 +1045,431 @@ describe("concurrent release and ciphertext integrity", () => {
         })
       ).status,
     ).toBe(404);
+  });
+});
+
+// Independent adversarial review: barriers run real concurrent state changes during crypto awaits.
+async function duringCrypto(method: "encrypt" | "decrypt", action: () => Promise<void>) {
+  const original = crypto.subtle[method].bind(crypto.subtle);
+  vi.spyOn(crypto.subtle, method).mockImplementationOnce(
+    async (...args: Parameters<typeof original>) => {
+      await action();
+      return original(args[0], args[1], args[2]);
+    },
+  );
+}
+
+describe("C1.1 adversarial lifecycle interleavings", () => {
+  it.each(["draft", "submission"])(
+    "cannot repopulate %s after completed withdrawal",
+    async (route) => {
+      const pair = await createPair();
+      await duringCrypto("encrypt", async () => {
+        expect(
+          (
+            await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/withdraw`, {
+              cookie: pair.second.cookie,
+              method: "POST",
+            })
+          ).status,
+        ).toBe(200);
+      });
+      const saved = await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/${route}`, {
+        cookie: pair.first.cookie,
+        method: route === "draft" ? "PUT" : "POST",
+        body: { submission: submission(25) },
+      });
+      expect(saved.status).toBe(404);
+      expect(
+        database.raw
+          .prepare("SELECT draft_envelope, submission_envelope FROM chemistry_participants")
+          .all(),
+      ).toEqual([
+        { draft_envelope: null, submission_envelope: null },
+        { draft_envelope: null, submission_envelope: null },
+      ]);
+    },
+  );
+
+  it("does not return a decrypted report after completed withdrawal", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+    await duringCrypto("decrypt", async () => {
+      expect(
+        (
+          await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/withdraw`, {
+            cookie: pair.second.cookie,
+            method: "POST",
+          })
+        ).status,
+      ).toBe(200);
+    });
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+          cookie: pair.first.cookie,
+        })
+      ).status,
+    ).toBe(404);
+  });
+
+  it("does not release an earlier wider approval during scope narrowing", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    await duringCrypto("encrypt", async () => {
+      expect(
+        (await approve(pair, "second", { dimensions: ["goals"], hardSignal: false })).status,
+      ).toBe(200);
+    });
+    expect((await release(pair)).status).toBe(409);
+    expect(database.raw.prepare("SELECT count(*) AS n FROM chemistry_results").get()).toEqual({
+      n: 0,
+    });
+  });
+
+  it("a competing release cannot delete the winning report", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    await duringCrypto("encrypt", async () => {
+      expect((await release(pair)).status).toBe(200);
+    });
+    await release(pair);
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+          cookie: pair.first.cookie,
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it("does not return a report to a session revoked during decryption", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+    await duringCrypto("decrypt", async () => {
+      database.raw.prepare("DELETE FROM auth_session WHERE userId = ?").run(pair.first.userId);
+    });
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+          cookie: pair.first.cookie,
+        })
+      ).status,
+    ).toBe(404);
+  });
+
+  it("cannot read a draft whose deadline has passed even when cleanup is backlogged", async () => {
+    const pair = await createPair();
+    await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/draft`, {
+      cookie: pair.first.cookie,
+      method: "PUT",
+      body: { submission: submission(25) },
+    });
+    // Bypass middleware cleanup to verify the service's own authorization invariant.
+    const { readDraft, chemistryKeyring } = await import("../../src/services/chemistry-check");
+    database.raw
+      .prepare(
+        "UPDATE chemistry_assessments SET assessment_expires_at = created_at - 1, created_at = created_at - 100 WHERE id = ?",
+      )
+      .run(pair.assessmentId);
+    const keyring = await chemistryKeyring(env);
+    expect(keyring).toBeTruthy();
+    if (!keyring) throw new Error("missing test keyring");
+    expect(await readDraft(env, keyring, pair.assessmentId, pair.first.userId)).toBeNull();
+  });
+
+  it("does not expose which counterpart has submitted through status", async () => {
+    const pair = await createPair();
+    await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/submission`, {
+      cookie: pair.first.cookie,
+      body: { submission: submission(25) },
+    });
+    const before = await (
+      await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}`, {
+        cookie: pair.first.cookie,
+      })
+    ).json();
+    await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/submission`, {
+      cookie: pair.second.cookie,
+      body: { submission: submission(25) },
+    });
+    const after = await (
+      await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}`, {
+        cookie: pair.first.cookie,
+      })
+    ).json();
+    expect(after).toEqual(before);
+  });
+});
+
+describe("C1.1 backup quarantine and traffic-independent purge", () => {
+  it("proves retained keys restore old access, then sanitizes a quarantined snapshot", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+    const pending = await api("/api/v1/chemistry-check/assessments", {
+      cookie: pair.second.cookie,
+      body: { depth: 25, inviteeLabel: "Forwarded" },
+    });
+    const invitation = (await pending.json()) as { invitation: { token: string } };
+    const dir = mkdtempSync(join(tmpdir(), "cheapseggs-restore-"));
+    try {
+      const snapshot = join(dir, "snapshot.sqlite");
+      await backup(database.raw, snapshot);
+      expect(
+        (
+          await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/withdraw`, {
+            cookie: pair.second.cookie,
+            method: "POST",
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+            cookie: pair.second.cookie,
+          })
+        ).status,
+      ).toBe(404);
+      expect(
+        (await accountCall("/api/account/delete", { confirmation: "DELETE" }, pair.first.cookie))
+          .status,
+      ).toBe(200);
+      const subjects = database.raw
+        .prepare("SELECT subject_id AS subjectId, deleted_at AS deletedAt FROM account_deletions")
+        .all();
+      const cutoff = Math.floor(Date.now() / 1000);
+      database.raw.close();
+      database = openTestSnapshot(snapshot);
+      env.DB = database.db;
+      // A real earlier SQLite snapshot resurrects both the deleted account/session and report.
+      expect(
+        (
+          await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+            cookie: pair.first.cookie,
+          })
+        ).status,
+      ).toBe(200);
+      const ledger = {
+        completeFrom: 0,
+        completeThrough: cutoff,
+        source: "external drill capture before restore",
+        subjects,
+      };
+      expect(() => restoreQuarantineSql(undefined, cutoff - 1, cutoff)).toThrow();
+      expect(() =>
+        restoreQuarantineSql({ ...ledger, completeThrough: cutoff - 1 }, cutoff - 1, cutoff),
+      ).toThrow("incomplete_deletion_ledger");
+      const sql = restoreQuarantineSql(ledger, cutoff - 1, cutoff);
+      database.raw.exec(sql);
+      database.raw.exec(sql);
+      expect(database.raw.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+      expect((await accountCall("/api/account", undefined, pair.first.cookie)).status).toBe(401);
+      expect(
+        database.raw.prepare("SELECT id FROM auth_user WHERE id = ?").get(pair.first.userId),
+      ).toBeUndefined();
+      expect(database.raw.prepare("SELECT count(*) AS n FROM chemistry_assessments").get()).toEqual(
+        { n: 0 },
+      );
+      expect(
+        (
+          await api("/api/v1/chemistry-check/invitations/accept", {
+            cookie: pair.second.cookie,
+            body: { token: invitation.invitation.token, confirmLabel: "Forwarded" },
+          })
+        ).status,
+      ).toBe(401);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("purges abandoned invitation drafts without a request or encryption key", async () => {
+    const owner = await login();
+    const created = await api("/api/v1/chemistry-check/assessments", {
+      cookie: owner.cookie,
+      body: { depth: 25, inviteeLabel: "Sam" },
+    });
+    const { assessment } = (await created.json()) as { assessment: { id: string } };
+    await api(`/api/v1/chemistry-check/assessments/${assessment.id}/draft`, {
+      cookie: owner.cookie,
+      method: "PUT",
+      body: { submission: submission(25) },
+    });
+    const { purgeExpired } = await import("../../src/services/chemistry-check");
+    delete env.CHEMISTRY_ENVELOPE_KEY;
+    delete env.CHEMISTRY_PRIVATE_ENABLED;
+    const future = Math.floor(Date.now() / 1000) + 49 * 3600;
+    await purgeExpired(env, future);
+    expect(database.raw.prepare("SELECT draft_envelope FROM chemistry_participants").get()).toEqual(
+      { draft_envelope: null },
+    );
+    await purgeExpired(env, future + 86400);
+    expect(database.raw.prepare("SELECT count(*) AS n FROM chemistry_assessments").get()).toEqual({
+      n: 0,
+    });
+  });
+});
+
+describe("C1.1 revocation, exact revision, and account expiry", () => {
+  it("withdrawal survives exhausted budgets and expired adulthood", async () => {
+    const pair = await createPair();
+    const { takeChemistryBudget } = await import("../../src/services/chemistry-check");
+    for (let i = 0; i < 240; i++) await takeChemistryBudget(env, "request", "local", 240, 900);
+    database.raw
+      .prepare(
+        "UPDATE account_declarations SET expires_at = declared_at + 1, declared_at = declared_at - 100 WHERE user_id = ?",
+      )
+      .run(pair.first.userId);
+    // Set expiry strictly in the past while preserving the declaration check constraint.
+    database.raw
+      .prepare("UPDATE account_declarations SET expires_at = ? WHERE user_id = ?")
+      .run(Math.floor(Date.now() / 1000) - 1, pair.first.userId);
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/withdraw`, {
+          cookie: pair.first.cookie,
+          method: "POST",
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it("cannot approve the old submitted snapshot after saving an edited draft", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/draft`, {
+          cookie: pair.first.cookie,
+          method: "PUT",
+          body: { submission: submission(25) },
+        })
+      ).status,
+    ).toBe(200);
+    expect((await approve(pair, "first")).status).toBe(409);
+    expect((await release(pair)).status).toBe(409);
+  });
+
+  it("cannot return a report when the other adult declaration expires", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+    database.raw
+      .prepare(
+        "UPDATE account_declarations SET declared_at = declared_at - 100, expires_at = ? WHERE user_id = ?",
+      )
+      .run(Math.floor(Date.now() / 1000) - 1, pair.second.userId);
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+          cookie: pair.first.cookie,
+        })
+      ).status,
+    ).toBe(404);
+  });
+
+  it("a completed account deletion wins over report decryption", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+    await duringCrypto("decrypt", async () => {
+      expect(
+        (await accountCall("/api/account/delete", { confirmation: "DELETE" }, pair.second.cookie))
+          .status,
+      ).toBe(200);
+    });
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+          cookie: pair.first.cookie,
+        })
+      ).status,
+    ).toBe(404);
+  });
+});
+
+describe("C1.1 owner snapshot and session write guards", () => {
+  it("the owner can reopen the submitted snapshot at its new draft revision", async () => {
+    const pair = await createPair();
+    const payload = submission(25);
+    await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/draft`, {
+      cookie: pair.first.cookie,
+      method: "PUT",
+      body: { submission: payload },
+    });
+    await submitBoth(pair);
+    const own = await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/draft`, {
+      cookie: pair.first.cookie,
+    });
+    expect(own.status).toBe(200);
+    expect(await own.json()).toEqual({ submission: payload });
+  });
+
+  it.each(["draft", "submission"])(
+    "revoking a session during %s encryption prevents its write",
+    async (route) => {
+      const pair = await createPair();
+      await duringCrypto("encrypt", async () => {
+        database.raw.prepare("DELETE FROM auth_session WHERE userId = ?").run(pair.first.userId);
+      });
+      const response = await api(
+        `/api/v1/chemistry-check/assessments/${pair.assessmentId}/${route}`,
+        {
+          cookie: pair.first.cookie,
+          method: route === "draft" ? "PUT" : "POST",
+          body: { submission: submission(25) },
+        },
+      );
+      expect(response.status).toBe(404);
+      expect(
+        database.raw
+          .prepare(
+            "SELECT draft_envelope, submission_envelope FROM chemistry_participants WHERE user_id = ?",
+          )
+          .get(pair.first.userId),
+      ).toEqual({ draft_envelope: null, submission_envelope: null });
+    },
+  );
+});
+
+describe("C1.1 counterpart progress minimization", () => {
+  it("approval acknowledgements do not distinguish the counterpart's submission state", async () => {
+    const pair = await createPair();
+    await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/submission`, {
+      cookie: pair.first.cookie,
+      body: { submission: submission(25) },
+    });
+    const before = await approve(pair, "first");
+    expect(before.status).toBe(200);
+    const firstView = await before.json();
+    await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/submission`, {
+      cookie: pair.second.cookie,
+      body: { submission: submission(25) },
+    });
+    const after = await approve(pair, "first");
+    expect(after.status).toBe(200);
+    expect(await after.json()).toEqual(firstView);
+    expect(JSON.stringify(firstView)).not.toContain('"approved"');
+    // The earlier epoch cannot authorize the later counterpart snapshot: both must approve again.
+    expect((await release(pair)).status).toBe(409);
   });
 });

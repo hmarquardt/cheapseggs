@@ -38,3 +38,12 @@ Deletion requires typing DELETE and a session created within five minutes. Bette
 ## Verification
 
 `npm run check` includes framework schema drift, Node/SQLite account tests and compiled workerd/D1 tests with an intercepted local mail transport. Coverage includes replay/concurrent use, attempts/expiry, cross-origin requests, declaration withdrawal, foreign-session revocation, recovery, idle/fresh access, deletion and disabled assurance. Browser tests cover unavailable email, account forms, explicit confirmations, accessibility and unchanged guest behavior. Tests never send real email. Final live verification checks release identity and safe behavior; real inbox delivery must be distinguished from provider acceptance.
+
+C1.1 Chemistry final sensitive reads/writes include the resolved Better Auth session id/owner and its
+absolute/idle expiry in the same D1 operation as assessment authorization; there is no added session
+cache. Authenticated Chemistry withdrawal is allowed after adult-declaration expiry without granting
+new data access. The [independent audit](CHEMISTRY_CHECK_SECURITY_AUDIT.md) confirms old sessions/accounts
+can be resurrected by an earlier snapshot. Follow [quarantine sanitation](CHEMISTRY_CHECK_RESTORE.md),
+discard all restored sessions/challenges and replay a complete external account-deletion ledger before
+any future recovery cutover. External-ledger completeness is an operational blocker, not an assumed
+capability. Recovery/session fixation/account deletion tests remain part of the complete suite.

@@ -15,7 +15,6 @@ export interface OwnView {
     submitted: boolean;
     submissionRevision: number | null;
     draftRevision: number;
-    approved: boolean;
   };
   invitation: { expiresAt: number; state: string } | null;
   reportAvailable: boolean;
@@ -39,12 +38,13 @@ export async function realApi<T>(
   path: string,
   options: { method?: string; body?: unknown } = {},
 ): Promise<T> {
+  const method = options.method ?? (options.body === undefined ? "GET" : "POST");
   const response = await fetch(`/api/v1/chemistry-check${path}`, {
-    method: options.method ?? (options.body === undefined ? "GET" : "POST"),
+    method,
     credentials: "same-origin",
     cache: "no-store",
     headers:
-      options.body === undefined
+      method === "GET" || method === "HEAD"
         ? {}
         : { "content-type": "application/json", "x-cheapseggs-action": "chemistry" },
     ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),

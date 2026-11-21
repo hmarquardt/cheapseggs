@@ -34,6 +34,7 @@ assert.equal(production.assets.run_worker_first, true);
 assert.equal(production.workers_dev, false);
 assert.equal(production.preview_urls, false);
 assert.equal(production.observability.enabled, false);
+assert.deepEqual(production.triggers, { crons: ["17 * * * *"] });
 assert.equal(production.version_metadata.binding, "WORKER_VERSION");
 assert.deepEqual(production.routes, [
   { pattern: "cheapseggs.com", custom_domain: true },

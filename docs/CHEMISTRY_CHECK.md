@@ -1,6 +1,8 @@
 # Chemistry Check — pre-date compatibility planning
 
-Status: **C1.1 backend implemented 2026-11-20, production-disabled.** The versioned bank, nested manifests, deterministic scorer, account-free demonstration, D1 lifecycle, two-account invitations, encrypted drafts/submissions, mutual release, reports, expiry and deletion are implemented and tested. Production private collection remains **closed**: the gate requires both `CHEMISTRY_PRIVATE_ENABLED` and the independent `CHEMISTRY_PRIVATE_REVIEW_APPROVED`, and the envelope key is absent from production config. See the [security handoff](CHEMISTRY_CHECK_SECURITY_HANDOFF.md).
+Status: **C1.1 backend implemented 2026-11-20, production-disabled.** The versioned bank, nested manifests, deterministic scorer, account-free demonstration, D1 lifecycle, two-account invitations, encrypted drafts/submissions, mutual release, reports, expiry and deletion are implemented and tested. Production private collection remains **closed**: the gate requires both `CHEMISTRY_PRIVATE_ENABLED` and the independent `CHEMISTRY_PRIVATE_REVIEW_APPROVED`, and the envelope key is absent from production config. See the [security handoff](CHEMISTRY_CHECK_SECURITY_HANDOFF.md) and the superseding
+[independent audit](CHEMISTRY_CHECK_SECURITY_AUDIT.md). The audit fixes confirmed races/disclosure defects;
+**controlled private beta is not approved** pending its operational and activation gates.
 
 ## Implementation status (2026-11-20)
 
@@ -154,3 +156,15 @@ See [Data model](DATA_MODEL.md) for planned tables, [Monetization](MONETIZATION.
 Run non-sensitive concept/UX tests alongside M2; real independent submissions follow M1b and an assessment-specific privacy gate. Pilot the 25-question free core first; introduce reviewed 50/100 depths only after completion/disclosure comprehension is understood. Pricing remains a hypothesis and paid launch separately requires confirmed processor suitability. Treat lower funnel friction and revenue as things to test, not reasons to sell private dealbreakers or unsafe predictive claims.
 
 Before implementation acceptance, specify/test: different answers with mutual acceptance; identical answers without acceptance; one-sided acceptance; zero weights; skipped/unset acceptance; hard conflict alongside high alignment; unresolved hard checks; complete omission of private-only items from all shared outputs/branches; sparse sexual categories; blocked/replayed/forwarded invitations; users with no couple records; release/edit/withdrawal races; reused-template revision/deletion; depth-based probing; price/refund scope; expiration and restored-backup revocation. Content review covers accessibility, inclusive wording and whether eight dimensions merit their labels. Psychometric/predictive claims need appropriately designed independent research, evidence and legal review; usability tests or competitor claims do not supply that validation.
+
+## Independent audit implementation notes
+
+The C1.1 audit adds migration 0009, final conditional session/lifecycle/approval guards, hourly bounded
+Worker maintenance and a conservative [restore procedure](CHEMISTRY_CHECK_RESTORE.md). Public views expose
+neutral collection/closed states and no counterpart progress or approval-validity field. Own approval can
+be acknowledged while the counterpart is still collecting; subsequent submission advances the epoch and
+invalidates that approval, so it cannot grant access to future answers. Both must approve the current
+pair of submissions again before release. Unassessed report categories use a neutral reason. Hard signals
+exclude unapproved categories and unapproved intimacy. Existing screenshots/in-flight responses and
+inference from mutually authorized aggregates remain unavoidable limits. Released reports are immutable;
+changing them requires withdrawal and a new assessment, subject to the cooldown.

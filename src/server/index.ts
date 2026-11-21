@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { PUBLIC_PATHS, SITE_JSON_LD_HASH, SITE_ORIGIN } from "../config/site";
-import { chemistryPrivateEnabled } from "../services/chemistry-check";
+import { chemistryPrivateEnabled, purgeExpired } from "../services/chemistry-check";
 import { requestDigestKeyed } from "../services/wheel";
 import { accountRoutes } from "./account";
 import type { Bindings } from "./bindings";
@@ -155,4 +155,10 @@ app.get("*", async (c) => {
 app.notFound((c) => c.json({ error: "not_found" }, 404));
 app.onError((_error, c) => c.json({ error: "request_failed" }, 500));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  // No keys or collection flags required: maintenance must continue while collection is off.
+  async scheduled(controller: ScheduledController, env: Bindings): Promise<void> {
+    await purgeExpired(env, Math.floor(controller.scheduledTime / 1000));
+  },
+};

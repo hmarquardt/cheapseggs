@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { PUBLIC_PATHS, SITE_ORIGIN } from "../src/config/site.ts";
+import { CHEMISTRY_GATE_METHODS, CHEMISTRY_GATE_PATHS } from "./chemistry-gate-paths.ts";
 import { releaseResponse } from "./release-response.ts";
 
 const expected = process.env.EXPECTED_REVISION ?? process.argv[2];
@@ -21,12 +22,36 @@ const version = (await versionResponse.json()) as {
   workerVersion: string;
   environment: string;
   spinDigestKeyed: boolean;
+  chemistryPrivate: boolean;
   rateLimits: { spin: boolean; wheel: boolean };
 };
 if (expected) assert.equal(version.revision, expected);
 assert.match(version.revision, /^[a-f0-9]{40}$/);
 assert.equal(version.environment, "production");
 assert.ok(version.workerVersion);
+assert.equal(version.chemistryPrivate, false, "private collection must remain disabled");
+// Gate checks contain no user data and must never reach auth or private persistence.
+for (const method of CHEMISTRY_GATE_METHODS) {
+  await Promise.all(
+    CHEMISTRY_GATE_PATHS.map(async (path) => {
+      const response = await get(path, {
+        method,
+        headers: {
+          origin: SITE_ORIGIN,
+          "content-type": "application/json",
+          "x-cheapseggs-action": "chemistry",
+        },
+      });
+      assert.equal(response.status, 404, `${method} ${path}`);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.ok(response.headers.get("x-robots-tag")?.includes("noindex"));
+    }),
+  );
+}
+evidence.push({
+  check: "chemistry-disabled-route-method-matrix",
+  result: CHEMISTRY_GATE_METHODS.length * CHEMISTRY_GATE_PATHS.length,
+});
 // Privacy and abuse gates: an unkeyed fingerprint or a missing limiter is a failed release.
 assert.equal(
   version.spinDigestKeyed,
