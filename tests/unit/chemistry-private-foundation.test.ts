@@ -187,7 +187,9 @@ describe("assessment lifecycle primitives", () => {
       hardSignal: false,
       expiresAt,
     });
-    expect(differentFlag && first && intersectScopes(first, differentFlag)).toBeNull();
+    const narrowed = differentFlag && first ? intersectScopes(first, differentFlag) : null;
+    expect(narrowed?.hardSignal).toBe(false);
+    expect(narrowed?.dimensions).toEqual(["humor"]);
     const differentDeadline = normalizeScope({
       dimensions: ["humor"],
       intimacyShared: false,

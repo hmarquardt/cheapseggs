@@ -38,8 +38,15 @@ export const chemistryRoutes = new Hono<ChemistryEnv>();
 
 const dimensionIds = DIMENSIONS.map((dimension) => dimension.id) as [string, ...string[]];
 const depthSchema = z.union([z.literal(25), z.literal(50), z.literal(100)]);
-const createSchema = z.object({ depth: depthSchema }).strict();
-const tokenSchema = z.object({ token: z.string().min(32).max(128) }).strict();
+const createSchema = z
+  .object({ depth: depthSchema, inviteeLabel: z.string().trim().min(1).max(40) })
+  .strict();
+const tokenSchema = z
+  .object({
+    token: z.string().min(32).max(128),
+    confirmLabel: z.string().trim().min(1).max(40),
+  })
+  .strict();
 const submissionBodySchema = z.object({ submission: z.unknown() }).strict();
 const approvalSchema = z
   .object({
@@ -118,7 +125,13 @@ chemistryRoutes.post("/chemistry-check/assessments", async (c) => {
   if ("error" in who) return c.json({ error: who.error }, who.status);
   const parsed = await body(c.req.raw, createSchema);
   if (!parsed) return c.json({ error: "invalid_request" }, 400);
-  const created = await createAssessment(c.env, who.userId, parsed.depth as ChemistryDepth, now);
+  const created = await createAssessment(
+    c.env,
+    who.userId,
+    parsed.depth as ChemistryDepth,
+    parsed.inviteeLabel,
+    now,
+  );
   if (!created) return c.json({ error: "not_available" }, 409);
   return c.json(
     {
@@ -126,6 +139,7 @@ chemistryRoutes.post("/chemistry-check/assessments", async (c) => {
       invitation: {
         token: created.invitation.token,
         hashPath: `#invite=${created.invitation.token}`,
+        inviteeLabel: created.invitation.inviteeLabel,
         expiresAt: created.invitation.expiresAt,
       },
     },
@@ -274,7 +288,13 @@ chemistryRoutes.post("/chemistry-check/invitations/accept", async (c) => {
   if ("error" in who) return c.json({ error: who.error }, who.status);
   const parsed = await body(c.req.raw, tokenSchema, 4096);
   if (!parsed) return c.json({ error: "invalid_request" }, 400);
-  const accepted = await acceptInvitation(c.env, parsed.token, who.userId, now);
+  const accepted = await acceptInvitation(
+    c.env,
+    parsed.token,
+    parsed.confirmLabel,
+    who.userId,
+    now,
+  );
   if (!accepted) return c.json(NOT_FOUND, 404);
   return c.json({ assessmentId: accepted.assessmentId });
 });

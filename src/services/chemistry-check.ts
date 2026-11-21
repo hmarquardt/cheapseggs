@@ -177,6 +177,7 @@ export interface InvitationRow {
   created_at: number;
   expires_at: number;
   state: "pending" | "consumed" | "revoked" | "expired";
+  invitee_label: string | null;
   consumed_at: number | null;
   consumed_by: string | null;
 }
@@ -462,13 +463,14 @@ export async function listOwnAssessments(
 
 export interface CreatedAssessment {
   assessment: OwnAssessmentView;
-  invitation: { token: string; expiresAt: number };
+  invitation: { token: string; expiresAt: number; inviteeLabel: string };
 }
 
 export async function createAssessment(
   env: Bindings,
   userId: string,
   depth: ChemistryDepth,
+  inviteeLabel: string,
   now: number,
 ): Promise<CreatedAssessment | null> {
   const manifest = MANIFESTS[depth];
@@ -485,6 +487,8 @@ export async function createAssessment(
 
   const assessmentId = crypto.randomUUID();
   const invitationId = crypto.randomUUID();
+  const label = inviteeLabel.trim().replace(/\s+/g, " ");
+  if (label.length < 1 || label.length > 40) return null;
   const token = randomToken();
   const tokenDigest = await sha256Hex(`chemistry-invite-v1|${token}`);
   const expiresAt = now + INVITATION_TTL_SECONDS;
@@ -511,9 +515,9 @@ export async function createAssessment(
       ).bind(assessmentId, userId, now),
       env.DB.prepare(
         `INSERT INTO chemistry_invitations
-         (id, assessment_id, token_digest, created_by, created_at, expires_at, state)
-         VALUES (?,?,?,?,?,?, 'pending')`,
-      ).bind(invitationId, assessmentId, tokenDigest, userId, now, expiresAt),
+         (id, assessment_id, token_digest, created_by, created_at, expires_at, state, invitee_label)
+         VALUES (?,?,?,?,?,?, 'pending', ?)`,
+      ).bind(invitationId, assessmentId, tokenDigest, userId, now, expiresAt, label),
     ]);
     if (results.some((result) => (result.meta.changes ?? 0) !== 1)) return null;
   } catch {
@@ -523,13 +527,14 @@ export async function createAssessment(
   if (!created) return null;
   return {
     assessment: await ownAssessmentView(env, created.assessment, created.participant, now),
-    invitation: { token, expiresAt },
+    invitation: { token, expiresAt, inviteeLabel: label },
   };
 }
 
 export async function acceptInvitation(
   env: Bindings,
   token: string,
+  confirmLabel: string,
   userId: string,
   now: number,
 ): Promise<{ assessmentId: string } | null> {
@@ -546,6 +551,9 @@ export async function acceptInvitation(
     .first<AssessmentRow>();
   if (!assessment) return null;
   if (invitation.state !== "pending" || invitation.expires_at <= now) return null;
+  const expected = invitation.invitee_label?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
+  const confirmed = confirmLabel.trim().replace(/\s+/g, " ").toLowerCase();
+  if (!expected || expected !== confirmed) return null;
   if (assessment.status !== "invited" || assessment.created_by === userId) return null;
   if (invitation.created_by === userId) return null;
 

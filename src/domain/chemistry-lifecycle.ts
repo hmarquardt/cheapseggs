@@ -94,18 +94,16 @@ export function normalizeScope(input: {
   };
 }
 
-/** Intersection of two approvals. The earliest deadline wins; scope must otherwise agree. */
+/** Intersection of two approvals. Unshared flags narrow the report; deadlines must match. */
 export function intersectScopes(first: ReleaseScope, second: ReleaseScope): ReleaseScope | null {
-  if (first.intimacyShared !== second.intimacyShared) return null;
-  if (first.hardSignal !== second.hardSignal) return null;
   if (first.expiresAt !== second.expiresAt) return null;
   const secondDimensions = new Set(second.dimensions);
   const dimensions = first.dimensions.filter((dimension) => secondDimensions.has(dimension));
   if (dimensions.length === 0) return null;
   return {
     dimensions,
-    intimacyShared: first.intimacyShared,
-    hardSignal: first.hardSignal,
+    intimacyShared: first.intimacyShared && second.intimacyShared,
+    hardSignal: first.hardSignal && second.hardSignal,
     expiresAt: first.expiresAt,
   };
 }

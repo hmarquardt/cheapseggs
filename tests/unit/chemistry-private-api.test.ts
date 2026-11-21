@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type ChemistryDepth, MANIFESTS } from "../../src/content/chemistry/questions";
+import { type ChemistryDepth, DIMENSIONS, MANIFESTS } from "../../src/content/chemistry/questions";
 import type { AssessmentSubmission } from "../../src/domain/chemistry";
 import { app } from "../../src/server";
 import type { Bindings } from "../../src/server/bindings";
@@ -119,7 +119,7 @@ async function createPair(depth: ChemistryDepth = 25) {
   const second = await login();
   const created = await api("/api/v1/chemistry-check/assessments", {
     cookie: first.cookie,
-    body: { depth },
+    body: { depth, inviteeLabel: "Sam" },
   });
   expect(created.status).toBe(201);
   const payload = (await created.json()) as {
@@ -128,7 +128,7 @@ async function createPair(depth: ChemistryDepth = 25) {
   };
   const accepted = await api("/api/v1/chemistry-check/invitations/accept", {
     cookie: second.cookie,
-    body: { token: payload.invitation.token },
+    body: { token: payload.invitation.token, confirmLabel: "Sam" },
   });
   expect(accepted.status).toBe(200);
   return {
@@ -146,7 +146,7 @@ describe("independent invitations", () => {
     const third = await login();
     const created = await api("/api/v1/chemistry-check/assessments", {
       cookie: first.cookie,
-      body: { depth: 25 },
+      body: { depth: 25, inviteeLabel: "Sam" },
     });
     expect(created.status).toBe(201);
     const payload = (await created.json()) as {
@@ -160,14 +160,23 @@ describe("independent invitations", () => {
       (
         await api("/api/v1/chemistry-check/invitations/accept", {
           cookie: first.cookie,
-          body: { token: payload.invitation.token },
+          body: { token: payload.invitation.token, confirmLabel: "Sam" },
+        })
+      ).status,
+    ).toBe(404);
+
+    expect(
+      (
+        await api("/api/v1/chemistry-check/invitations/accept", {
+          cookie: second.cookie,
+          body: { token: payload.invitation.token, confirmLabel: "Alex" },
         })
       ).status,
     ).toBe(404);
 
     const accepted = await api("/api/v1/chemistry-check/invitations/accept", {
       cookie: second.cookie,
-      body: { token: payload.invitation.token },
+      body: { token: payload.invitation.token, confirmLabel: "Sam" },
     });
     expect(accepted.status).toBe(200);
     expect(await accepted.json()).toEqual({ assessmentId: payload.assessment.id });
@@ -176,7 +185,7 @@ describe("independent invitations", () => {
       (
         await api("/api/v1/chemistry-check/invitations/accept", {
           cookie: second.cookie,
-          body: { token: payload.invitation.token },
+          body: { token: payload.invitation.token, confirmLabel: "Sam" },
         })
       ).status,
     ).toBe(404);
@@ -184,7 +193,7 @@ describe("independent invitations", () => {
       (
         await api("/api/v1/chemistry-check/invitations/accept", {
           cookie: third.cookie,
-          body: { token: payload.invitation.token },
+          body: { token: payload.invitation.token, confirmLabel: "Sam" },
         })
       ).status,
     ).toBe(404);
@@ -223,7 +232,7 @@ describe("independent invitations", () => {
 
     const duplicate = await api("/api/v1/chemistry-check/assessments", {
       cookie: first.cookie,
-      body: { depth: 50 },
+      body: { depth: 50, inviteeLabel: "Sam" },
     });
     expect(duplicate.status).toBe(201);
     const duplicatePayload = (await duplicate.json()) as { invitation: { token: string } };
@@ -231,7 +240,7 @@ describe("independent invitations", () => {
       (
         await api("/api/v1/chemistry-check/invitations/accept", {
           cookie: second.cookie,
-          body: { token: duplicatePayload.invitation.token },
+          body: { token: duplicatePayload.invitation.token, confirmLabel: "Sam" },
         })
       ).status,
     ).toBe(404);
@@ -244,7 +253,7 @@ describe("invitation failure modes", () => {
     const second = await login();
     const expired = await api("/api/v1/chemistry-check/assessments", {
       cookie: first.cookie,
-      body: { depth: 25 },
+      body: { depth: 25, inviteeLabel: "Sam" },
     });
     const expiredPayload = (await expired.json()) as {
       assessment: { id: string };
@@ -257,14 +266,14 @@ describe("invitation failure modes", () => {
       .run(expiredPayload.assessment.id);
     const late = await api("/api/v1/chemistry-check/invitations/accept", {
       cookie: second.cookie,
-      body: { token: expiredPayload.invitation.token },
+      body: { token: expiredPayload.invitation.token, confirmLabel: "Sam" },
     });
     expect(late.status).toBe(404);
     expect(await late.json()).toEqual({ error: "not_found" });
 
     const revocable = await api("/api/v1/chemistry-check/assessments", {
       cookie: first.cookie,
-      body: { depth: 25 },
+      body: { depth: 25, inviteeLabel: "Sam" },
     });
     const revocablePayload = (await revocable.json()) as {
       assessment: { id: string };
@@ -282,7 +291,7 @@ describe("invitation failure modes", () => {
       (
         await api("/api/v1/chemistry-check/invitations/accept", {
           cookie: second.cookie,
-          body: { token: revocablePayload.invitation.token },
+          body: { token: revocablePayload.invitation.token, confirmLabel: "Sam" },
         })
       ).status,
     ).toBe(404);
@@ -313,7 +322,7 @@ describe("invitation failure modes", () => {
     const third = await login();
     const created = await api("/api/v1/chemistry-check/assessments", {
       cookie: first.cookie,
-      body: { depth: 25 },
+      body: { depth: 25, inviteeLabel: "Sam" },
     });
     const payload = (await created.json()) as {
       assessment: { id: string };
@@ -323,7 +332,7 @@ describe("invitation failure modes", () => {
       [second, third].map((candidate) =>
         api("/api/v1/chemistry-check/invitations/accept", {
           cookie: candidate.cookie,
-          body: { token: payload.invitation.token },
+          body: { token: payload.invitation.token, confirmLabel: "Sam" },
         }),
       ),
     );
@@ -460,5 +469,568 @@ describe("private drafts and immutable submissions", () => {
         .prepare("SELECT result_epoch FROM chemistry_assessments WHERE id = ?")
         .get(pair.assessmentId),
     ).toEqual({ result_epoch: 4 });
+  });
+});
+
+const ALL_DIMENSIONS = DIMENSIONS.map((dimension) => dimension.id);
+
+async function submitBoth(
+  pair: Awaited<ReturnType<typeof createPair>>,
+  first = submission(25),
+  second = submission(25),
+) {
+  for (const [member, body] of [
+    [pair.first, first],
+    [pair.second, second],
+  ] as const) {
+    const response = await api(
+      `/api/v1/chemistry-check/assessments/${pair.assessmentId}/submission`,
+      { cookie: member.cookie, method: "POST", body: { submission: body } },
+    );
+    expect(response.status).toBe(200);
+  }
+}
+
+async function approve(
+  pair: Awaited<ReturnType<typeof createPair>>,
+  member: "first" | "second",
+  scope: { dimensions?: string[]; intimacyShared?: boolean; hardSignal?: boolean } = {},
+) {
+  return api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/approval`, {
+    cookie: pair[member].cookie,
+    method: "POST",
+    body: {
+      dimensions: scope.dimensions ?? ALL_DIMENSIONS,
+      intimacyShared: scope.intimacyShared ?? false,
+      hardSignal: scope.hardSignal ?? true,
+    },
+  });
+}
+
+async function release(pair: Awaited<ReturnType<typeof createPair>>) {
+  return api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/release`, {
+    cookie: pair.first.cookie,
+    method: "POST",
+  });
+}
+
+describe("mutual release and reports", () => {
+  it("refuses one-sided release and returns the same coarse report to both", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    expect((await approve(pair, "first")).status).toBe(200);
+    expect((await release(pair)).status).toBe(409);
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+          cookie: pair.second.cookie,
+        })
+      ).status,
+    ).toBe(404);
+
+    expect((await approve(pair, "second")).status).toBe(200);
+    const released = await release(pair);
+    expect(released.status).toBe(200);
+    const firstReport = await api(
+      `/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`,
+      { cookie: pair.first.cookie },
+    );
+    const secondReport = await api(
+      `/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`,
+      { cookie: pair.second.cookie },
+    );
+    expect(firstReport.status).toBe(200);
+    expect(secondReport.status).toBe(200);
+    const firstBody = await firstReport.json();
+    const secondBody = await secondReport.json();
+    expect(secondBody).toEqual(firstBody);
+    const payload = secondBody as {
+      report: { available: boolean; dimensions: { dimension: string; band: string | null }[] };
+      expiresAt: number;
+    };
+    expect(payload.report.available).toBe(true);
+    expect(payload.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
+    const serialized = JSON.stringify(payload);
+    for (const leaked of ["comparable", "questionId", "importance", "hasAcceptedDifferences"])
+      expect(serialized).not.toContain(leaked);
+    expect(serialized).not.toContain("This week, ideally");
+    const stored = JSON.stringify(database.raw.prepare("SELECT * FROM chemistry_results").all());
+    expect(stored).not.toContain("largely_aligned");
+    expect(stored).toContain("AES-GCM");
+  });
+});
+
+describe("release scope and invalidation", () => {
+  it("intersects dimensions and suppresses one-sided flags without blocking release", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    expect(
+      (
+        await approve(pair, "first", {
+          dimensions: ["goals", "lifestyle", "communication", "intimacy"],
+          intimacyShared: false,
+          hardSignal: true,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await approve(pair, "second", {
+          dimensions: ["goals", "lifestyle", "communication", "humor"],
+          intimacyShared: false,
+          hardSignal: false,
+        })
+      ).status,
+    ).toBe(200);
+    expect((await release(pair)).status).toBe(200);
+    const response = await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+      cookie: pair.first.cookie,
+    });
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      report: {
+        hardConflict: string | null;
+        dimensions: { dimension: string; band: string | null; detail: string }[];
+      };
+    };
+    expect(payload.report.hardConflict).toBeNull();
+    const byId = new Map(payload.report.dimensions.map((entry) => [entry.dimension, entry]));
+    expect(byId.get("goals")?.band).not.toBeNull();
+    expect(byId.get("humor")?.detail).toBe("outside_approved_scope");
+    expect(byId.get("intimacy")?.detail).toBe("outside_approved_scope");
+  });
+
+  it("invalidates both approvals when one participant edits their submission", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    const edited = await api(
+      `/api/v1/chemistry-check/assessments/${pair.assessmentId}/submission`,
+      {
+        cookie: pair.first.cookie,
+        method: "POST",
+        body: { submission: submission(25, { hardSignal: false }) },
+      },
+    );
+    expect(edited.status).toBe(200);
+    expect(
+      database.raw.prepare("SELECT count(*) AS total FROM chemistry_release_approvals").get(),
+    ).toEqual({ total: 0 });
+    expect((await release(pair)).status).toBe(409);
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+          cookie: pair.second.cookie,
+        })
+      ).status,
+    ).toBe(404);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+  });
+
+  it("rejects a tampered approval digest and revoked sessions", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    database.raw
+      .prepare("UPDATE chemistry_release_approvals SET scope_digest = ? WHERE user_id = ?")
+      .run("0".repeat(64), pair.first.userId);
+    expect((await release(pair)).status).toBe(409);
+    const revoked = await accountCall("/api/account/revoke", { all: true }, pair.first.cookie);
+    expect(revoked.status).toBe(200);
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}`, {
+          cookie: pair.first.cookie,
+        })
+      ).status,
+    ).toBe(401);
+  });
+});
+
+function patchResponse(
+  base: AssessmentSubmission,
+  index: number,
+  patch: Partial<AssessmentSubmission["responses"][number]>,
+): AssessmentSubmission {
+  return {
+    ...base,
+    responses: base.responses.map((response, position) =>
+      position === index ? { ...response, ...patch } : response,
+    ),
+  };
+}
+
+describe("hard requirements and disclosure noninterference", () => {
+  it("surfaces a conflict without identifying the owner or the rule", async () => {
+    const pair = await createPair();
+    const question = MANIFESTS[25].questions[0];
+    if (!question) throw new Error("missing question");
+    const strict = patchResponse(submission(25), 0, {
+      own: [question.choices[0]?.id ?? ""],
+      accept: [question.choices[1]?.id ?? ""],
+      dealbreaker: true,
+    });
+    await submitBoth(pair, strict, submission(25));
+    await approve(pair, "first", { hardSignal: true });
+    await approve(pair, "second", { hardSignal: true });
+    expect((await release(pair)).status).toBe(200);
+    const response = await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+      cookie: pair.second.cookie,
+    });
+    const payload = (await response.json()) as { report: { hardConflict: string | null } };
+    expect(payload.report.hardConflict).toBe("conflict_detected");
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain("dealbreaker");
+    expect(serialized).not.toContain(pair.first.userId);
+    expect(serialized).not.toContain(pair.second.userId);
+  });
+
+  it("does not let private-only answers change a released report", async () => {
+    const question = MANIFESTS[25].questions[0];
+    if (!question) throw new Error("missing question");
+    const firstAnswer = question.choices[0]?.id ?? "";
+    const otherAnswer = question.choices[3]?.id ?? "";
+    const variant = (own: string) =>
+      patchResponse(submission(25), 0, { own: [own], disclosure: "private" });
+
+    const pairA = await createPair();
+    await submitBoth(pairA, variant(firstAnswer), variant(firstAnswer));
+    await approve(pairA, "first");
+    await approve(pairA, "second");
+    expect((await release(pairA)).status).toBe(200);
+    const reportA = await api(`/api/v1/chemistry-check/assessments/${pairA.assessmentId}/report`, {
+      cookie: pairA.first.cookie,
+    });
+    const baseline = await reportA.json();
+
+    const pairB = await createPair();
+    await submitBoth(pairB, variant(otherAnswer), variant(otherAnswer));
+    await approve(pairB, "first");
+    await approve(pairB, "second");
+    expect((await release(pairB)).status).toBe(200);
+    const reportB = await api(`/api/v1/chemistry-check/assessments/${pairB.assessmentId}/report`, {
+      cookie: pairB.second.cookie,
+    });
+    expect(await reportB.json()).toEqual(baseline);
+    const serialized = JSON.stringify(baseline);
+    expect(serialized).not.toContain(question.choices[0]?.label ?? "");
+    expect(serialized).not.toContain(question.choices[3]?.label ?? "");
+  });
+});
+
+describe("withdrawal, deletion and expiry", () => {
+  it("revokes access immediately when either participant withdraws", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/withdraw`, {
+          cookie: pair.second.cookie,
+          method: "POST",
+        })
+      ).status,
+    ).toBe(200);
+    for (const member of [pair.first, pair.second])
+      expect(
+        (
+          await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+            cookie: member.cookie,
+          })
+        ).status,
+      ).toBe(404);
+    expect(database.raw.prepare("SELECT count(*) AS n FROM chemistry_results").get()).toEqual({
+      n: 0,
+    });
+    expect(
+      database.raw
+        .prepare(
+          "SELECT count(*) AS n FROM chemistry_participants WHERE submission_envelope IS NOT NULL",
+        )
+        .get(),
+    ).toEqual({ n: 0 });
+  });
+
+  it("terminates a released assessment when an account is deleted", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+    const deleted = await accountCall(
+      "/api/account/delete",
+      { confirmation: "DELETE" },
+      pair.second.cookie,
+    );
+    expect(deleted.status).toBe(200);
+    expect(
+      database.raw
+        .prepare("SELECT count(*) AS n FROM chemistry_assessments WHERE id = ?")
+        .get(pair.assessmentId),
+    ).toEqual({ n: 0 });
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+          cookie: pair.first.cookie,
+        })
+      ).status,
+    ).toBe(404);
+  });
+});
+
+describe("expiration, cooldown and abuse limits", () => {
+  it("expires assessments and reports and clears private envelopes", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    database.raw
+      .prepare(
+        "UPDATE chemistry_assessments SET created_at = 1, assessment_expires_at = 2 WHERE id = ?",
+      )
+      .run(pair.assessmentId);
+    const view = await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}`, {
+      cookie: pair.first.cookie,
+    });
+    expect(view.status).toBe(200);
+    expect(((await view.json()) as { assessment: { status: string } }).assessment.status).toBe(
+      "expired",
+    );
+    expect(
+      database.raw
+        .prepare(
+          "SELECT count(*) AS n FROM chemistry_participants WHERE submission_envelope IS NOT NULL",
+        )
+        .get(),
+    ).toEqual({ n: 0 });
+    expect((await release(pair)).status).toBe(409);
+
+    const reportPair = await createPair();
+    await submitBoth(reportPair);
+    await approve(reportPair, "first");
+    await approve(reportPair, "second");
+    expect((await release(reportPair)).status).toBe(200);
+    database.raw
+      .prepare(
+        "UPDATE chemistry_assessments SET released_at = 1, report_expires_at = 2 WHERE id = ?",
+      )
+      .run(reportPair.assessmentId);
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${reportPair.assessmentId}/report`, {
+          cookie: reportPair.second.cookie,
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      database.raw
+        .prepare("SELECT status FROM chemistry_assessments WHERE id = ?")
+        .get(reportPair.assessmentId),
+    ).toEqual({ status: "expired" });
+  });
+
+  it("enforces the 30-day pair cooldown even after local deletion", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    expect((await release(pair)).status).toBe(200);
+
+    const again = await api("/api/v1/chemistry-check/assessments", {
+      cookie: pair.first.cookie,
+      body: { depth: 25, inviteeLabel: "Sam" },
+    });
+    expect(again.status).toBe(201);
+    const token = ((await again.json()) as { invitation: { token: string } }).invitation.token;
+    expect(
+      (
+        await api("/api/v1/chemistry-check/invitations/accept", {
+          cookie: pair.second.cookie,
+          body: { token, confirmLabel: "Sam" },
+        })
+      ).status,
+    ).toBe(404);
+
+    database.raw.prepare("DELETE FROM chemistry_assessments WHERE id = ?").run(pair.assessmentId);
+    expect(
+      (
+        await api("/api/v1/chemistry-check/invitations/accept", {
+          cookie: pair.second.cookie,
+          body: { token, confirmLabel: "Sam" },
+        })
+      ).status,
+    ).toBe(404);
+    expect(database.raw.prepare("SELECT count(*) AS n FROM chemistry_pair_releases").get()).toEqual(
+      {
+        n: 1,
+      },
+    );
+    database.raw.prepare("UPDATE chemistry_pair_releases SET last_released_at = 0").run();
+    expect(
+      (
+        await api("/api/v1/chemistry-check/invitations/accept", {
+          cookie: pair.second.cookie,
+          body: { token, confirmLabel: "Sam" },
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it("bounds active invitations, daily creations and keeps sparse reports withheld", async () => {
+    const first = await login();
+    for (let index = 0; index < 3; index += 1) {
+      expect(
+        (
+          await api("/api/v1/chemistry-check/assessments", {
+            cookie: first.cookie,
+            body: { depth: 25, inviteeLabel: "Sam" },
+          })
+        ).status,
+      ).toBe(201);
+    }
+    expect(
+      (
+        await api("/api/v1/chemistry-check/assessments", {
+          cookie: first.cookie,
+          body: { depth: 25, inviteeLabel: "Sam" },
+        })
+      ).status,
+    ).toBe(409);
+
+    const busy = await login();
+    for (let index = 0; index < 5; index += 1) {
+      const created = await api("/api/v1/chemistry-check/assessments", {
+        cookie: busy.cookie,
+        body: { depth: 25, inviteeLabel: "Sam" },
+      });
+      expect(created.status).toBe(201);
+      const id = ((await created.json()) as { assessment: { id: string } }).assessment.id;
+      expect(
+        (
+          await api(`/api/v1/chemistry-check/assessments/${id}/invitation/revoke`, {
+            cookie: busy.cookie,
+            method: "POST",
+          })
+        ).status,
+      ).toBe(200);
+    }
+    expect(
+      (
+        await api("/api/v1/chemistry-check/assessments", {
+          cookie: busy.cookie,
+          body: { depth: 25, inviteeLabel: "Sam" },
+        })
+      ).status,
+    ).toBe(409);
+
+    const pair = await createPair();
+    const sparse = submission(25, {
+      responses: submission(25).responses.filter((response) => {
+        const question = MANIFESTS[25].questions.find((entry) => entry.id === response.questionId);
+        return question?.dimension === "goals" || question?.dimension === "lifestyle";
+      }),
+    });
+    await submitBoth(pair, sparse, sparse);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    const released = await release(pair);
+    expect(released.status).toBe(200);
+    const payload = (await released.json()) as { report: { available: boolean } };
+    expect(payload.report.available).toBe(false);
+    const report = await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+      cookie: pair.second.cookie,
+    });
+    expect(report.status).toBe(200);
+    const withheld = (await report.json()) as {
+      report: { available: boolean; dimensions: { band: string | null; detail: string }[] };
+    };
+    expect(withheld.report.available).toBe(false);
+    expect(withheld.report.dimensions.every((entry) => entry.band === null)).toBe(true);
+    expect(withheld.report.dimensions[0]?.detail).toBe("report_withheld");
+  });
+});
+
+describe("concurrent release and ciphertext integrity", () => {
+  it("never exposes a report after a concurrent withdrawal", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    const [releaseAttempt, withdrawAttempt] = await Promise.all([
+      release(pair),
+      api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/withdraw`, {
+        cookie: pair.second.cookie,
+        method: "POST",
+      }),
+    ]);
+    expect([200, 409]).toContain(releaseAttempt.status);
+    expect(withdrawAttempt.status).toBe(200);
+    for (const member of [pair.first, pair.second])
+      expect(
+        (
+          await api(`/api/v1/chemistry-check/assessments/${pair.assessmentId}/report`, {
+            cookie: member.cookie,
+          })
+        ).status,
+      ).toBe(404);
+    expect(database.raw.prepare("SELECT count(*) AS n FROM chemistry_results").get()).toEqual({
+      n: 0,
+    });
+  });
+
+  it("fails closed when a stored submission or report envelope is tampered with", async () => {
+    const pair = await createPair();
+    await submitBoth(pair);
+    await approve(pair, "first");
+    await approve(pair, "second");
+    const row = database.raw
+      .prepare(
+        "SELECT submission_envelope FROM chemistry_participants WHERE assessment_id = ? LIMIT 1",
+      )
+      .get(pair.assessmentId) as { submission_envelope: string };
+    const record = JSON.parse(row.submission_envelope) as { ct: string };
+    const flipped = `${record.ct.slice(0, 8)}${record.ct[8] === "A" ? "B" : "A"}${record.ct.slice(9)}`;
+    database.raw
+      .prepare(
+        "UPDATE chemistry_participants SET submission_envelope = ? WHERE assessment_id = ? AND user_id = ?",
+      )
+      .run(
+        JSON.stringify({ ...(JSON.parse(row.submission_envelope) as object), ct: flipped }),
+        pair.assessmentId,
+        pair.first.userId,
+      );
+    expect((await release(pair)).status).toBe(409);
+
+    const cleanPair = await createPair();
+    await submitBoth(cleanPair);
+    await approve(cleanPair, "first");
+    await approve(cleanPair, "second");
+    expect((await release(cleanPair)).status).toBe(200);
+    const result = database.raw
+      .prepare("SELECT report_envelope FROM chemistry_results WHERE assessment_id = ?")
+      .get(cleanPair.assessmentId) as { report_envelope: string };
+    const reportRecord = JSON.parse(result.report_envelope) as { ct: string };
+    database.raw
+      .prepare("UPDATE chemistry_results SET report_envelope = ? WHERE assessment_id = ?")
+      .run(
+        JSON.stringify({
+          ...(JSON.parse(result.report_envelope) as object),
+          ct: `${reportRecord.ct.slice(0, 8)}${reportRecord.ct[8] === "A" ? "B" : "A"}${reportRecord.ct.slice(9)}`,
+        }),
+        cleanPair.assessmentId,
+      );
+    expect(
+      (
+        await api(`/api/v1/chemistry-check/assessments/${cleanPair.assessmentId}/report`, {
+          cookie: cleanPair.first.cookie,
+        })
+      ).status,
+    ).toBe(404);
   });
 });
