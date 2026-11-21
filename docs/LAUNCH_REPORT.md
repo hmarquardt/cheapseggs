@@ -1,5 +1,24 @@
 # Public launch evidence
 
+## Chemistry Check private backend release — 2026-11-20 (production-disabled)
+
+| Evidence          | Observed                                                                                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release           | `cac0d6e872782eae8be9a2739c6087ea71f3658a`; worker `cb19a23b-90e1-45f9-b1c1-1fa2bc193455`                                                             |
+| Pipeline          | [44844348497](https://github.com/hmarquardt/cheapseggs/actions/runs/44844348497): validate, deploy and 23 production smoke checks succeeded           |
+| Migrations        | `0007_chemistry_check.sql` and `0008_chemistry_invitation_label.sql` applied by the guarded release; tables remain empty until activation             |
+| Gate              | `/api/version` reports `chemistryPrivate: false`; `GET /api/v1/chemistry-check/status` and an unauthenticated create both return 404                  |
+| Public demo       | `/chemistry/` 200; live mobile sample report renders eight bands, zero page errors, zero overflow, and the real panel is absent                       |
+| Existing features | Smoke artifact still passes wheels, paired draws, restricted-content 404s, Date Night, cookbook, metadata, account boundaries and rate-limit identity |
+| Tests             | 222 unit/integration tests (14 foundation, 18 HTTP with three accounts); 38 browser cases including the unchanged demonstration                       |
+| Not enabled       | Real private collection, envelope key, review flag, scheduled purge job, independent audit                                                            |
+
+Implemented behind the closed gate: migration-backed two-account assessments, hashed label-confirmed
+invitations, AES-256-GCM drafts and submissions, per-epoch mutual release approvals, encrypted coarse reports,
+withdrawal/deletion/expiry/purge, pair cooldown and keyed abuse budgets. See
+[Chemistry Check security handoff](CHEMISTRY_CHECK_SECURITY_HANDOFF.md) for the review package and activation
+checklist. No real assessment answer, invitation or report exists in production.
+
 ## Chemistry Check demonstration release — 2026-11-20
 
 | Evidence            | Observed                                                                                                                                                                                                                                                                                                                    |
