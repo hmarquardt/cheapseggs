@@ -1938,3 +1938,80 @@ button.text-link {
     background: var(--gold);
   }
 }
+
+/* ------------------------------------------------------- chemistry real flow */
+.chemistry-real {
+  margin-block: 2rem;
+}
+.chemistry-real-block {
+  margin-block: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--border);
+}
+.chemistry-real-block h3 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  margin: 0 0 0.6rem;
+}
+.chemistry-real-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.chemistry-field {
+  display: grid;
+  gap: 0.35rem;
+  margin-block: 0.9rem;
+  font-size: 0.92rem;
+}
+.chemistry-field input {
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #2a0f1d;
+  color: var(--cream);
+  font: inherit;
+}
+.chemistry-link {
+  width: 100%;
+  margin-block: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #1f0b15;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+}
+.chemistry-real-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.chemistry-real-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #2a0f1d;
+}
+.chemistry-real-list p {
+  margin: 0.15rem 0 0;
+}
+.chemistry-real-dims {
+  display: grid;
+  gap: 0.35rem;
+  margin-block: 0.8rem;
+}
+@media (min-width: 720px) {
+  .chemistry-real-dims {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { PUBLIC_PATHS, SITE_JSON_LD_HASH, SITE_ORIGIN } from "../config/site";
+import { chemistryPrivateEnabled } from "../services/chemistry-check";
 import { requestDigestKeyed } from "../services/wheel";
 import { accountRoutes } from "./account";
 import type { Bindings } from "./bindings";
@@ -99,6 +100,8 @@ app.get("/api/version", (c) =>
     environment: c.env?.APP_ENV ?? "local",
     // Non-secret health signal: a release refuses to ship unkeyed spin fingerprints.
     spinDigestKeyed: requestDigestKeyed(c.env?.SPIN_DIGEST_KEY),
+    // Non-secret health signal: the private assessment gate must read false in production.
+    chemistryPrivate: c.env ? chemistryPrivateEnabled(c.env) : false,
     rateLimits: {
       spin: Boolean(c.env?.SPIN_RATE_LIMITER),
       wheel: Boolean(c.env?.WHEEL_RATE_LIMITER),

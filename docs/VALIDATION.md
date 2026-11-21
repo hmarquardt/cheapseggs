@@ -260,3 +260,24 @@ described in [Chemistry Check](CHEMISTRY_CHECK.md) and is not claimed here.
 
 Approximate build addition: `dist/client/assets/chemistry-*.js` 57.45 KB raw / 18.29 KB gzip, including
 the 100-question editorial bank. The page adds no server route or D1 migration.
+
+## Chemistry Check C1.1 private backend (2026-11-20)
+
+Implemented against `8b95367`: migration 0007 (assessments, two slots, hashed invitations, encrypted
+revisions, approvals, results, ledger, budgets, deletion trigger), migration 0008 (invitee label),
+AES-256-GCM envelopes, two-account invitation lifecycle, encrypted drafts/submissions, mutual release,
+reports, expiry/purge, cooldown and abuse limits. The production gate requires both
+`CHEMISTRY_PRIVATE_ENABLED` and `CHEMISTRY_PRIVATE_REVIEW_APPROVED`; no key or flags exist in
+`wrangler.production.jsonc`.
+
+| Check                | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`      | exit 0 — Biome, strict types, config gates, **222 unit/integration tests in 17 files**, fresh SQLite migrations/seeds, builds, workerd auth                                                                                                                                                                                                                                                                                                                                                                             |
+| Chemistry foundation | 14 tests: envelope round-trip, tamper/AAD/unknown-version/missing-key rejection, rotation, gate matrix, scope intersection, D1 uniqueness/slot/invitation/epoch constraints, submission monotonicity, account-deletion cascade, keyed budgets, closed HTTP surface                                                                                                                                                                                                                                                      |
+| Chemistry HTTP       | 18 tests with real Better Auth sessions and three accounts: self/replay/third/concurrent claims, expiry/revocation/decline, draft ownership and cross-depth rejection, ciphertext-only storage, one-sided and mutual release, identical reports, scope intersection, approval invalidation, tampered digest/envelope, hard conflict, private-only non-interference, withdrawal race, account deletion, assessment/report expiry, cooldown after deletion, invitation limits, sparse withheld report, session revocation |
+| Browser demo         | 4 chemistry cases (desktop/mobile) still pass; real UI is hidden when the gate returns 404                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Not enabled          | Real private collection, production envelope key, scheduled purge job, independent audit                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+No answer, prompt or report is stored in plaintext, and no assessment data reaches analytics, logs, URLs or
+browser storage. Remaining review items and the activation checklist are in
+[Chemistry Check security handoff](CHEMISTRY_CHECK_SECURITY_HANDOFF.md).

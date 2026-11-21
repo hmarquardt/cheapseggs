@@ -22,6 +22,7 @@ import { syntheticResponses, syntheticSubmission } from "./demo";
 import { type AcceptMode, modeForResponse, QuestionStep } from "./QuestionStep";
 import { ChemistryReport } from "./Report";
 import { Review } from "./Review";
+import { RealAssessments } from "./real";
 
 type Stage = "landing" | "quiz" | "review" | "report";
 
@@ -436,6 +437,7 @@ function Landing(props: {
           dimension appears only when both people specifically opt in and enough shared items exist.
         </p>
       </section>
+      <RealAssessments />
     </section>
   );
 }

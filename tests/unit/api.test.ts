@@ -58,6 +58,7 @@ describe("foundation API boundary", () => {
       workerVersion: null,
       environment: "local",
       spinDigestKeyed: false,
+      chemistryPrivate: false,
       rateLimits: { spin: false, wheel: false },
     });
     expect(response.headers.get("set-cookie")).toBeNull();

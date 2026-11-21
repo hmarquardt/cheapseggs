@@ -93,7 +93,13 @@ No GET preference-by-user, negative-match, partner exclusions, matching counts, 
 
 `/api/v1/chemistry-check/` will contain assessment creation, single-use invitation acceptance, own draft/submission, exact-revision release approval, approved report read, withdrawal/deletion and own general-template save/import. It takes no couple ID and creates no relationship. Only self endpoints can read a submission; counterpart access is restricted to the mutually authorized report. Server-derived participant/release/epoch/expiry checks replace couple membership checks for this namespace. No bulk profile comparison, per-question probe, counterpart progress, directional score or private-rule endpoint. Compatibility never supplies activity-approval state. See [Chemistry Check](CHEMISTRY_CHECK.md) for version/disclosure/anti-probing semantics. These are planning routes only; the checked-in OpenAPI and executable handlers remain unchanged.
 
-**Implementation status (2026-11-20):** `/chemistry/` now ships a client-only demonstration. It adds **no** API route and sends no assessment data; the question bank, scorer and report live in `src/content/chemistry` and `src/domain/chemistry.ts`. No OpenAPI change is warranted until the persisted namespace exists.
+**Implementation status (2026-11-20):** `/chemistry/` ships a client-only demonstration plus a real
+`/api/v1/chemistry-check/` namespace: status, own assessment list/view, create, invitation accept/revoke,
+own draft read/save, immutable submission, release approval, release, report read, decline, withdraw and
+delete. Every route is closed behind the two-key production gate and returns generic 404 when the gate or
+envelope key is absent. No endpoint accepts a counterpart user id, an arbitrary comparison, a directional
+score or a client-chosen epoch/deadline. The public demonstration never sends answers. See the
+[security handoff](CHEMISTRY_CHECK_SECURITY_HANDOFF.md).
 
 ## Request/security conventions
 
